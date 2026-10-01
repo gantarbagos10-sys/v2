@@ -75,8 +75,8 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
   <div class="panel">
     <div class="setting-row troop-row">
       <div class="field"><label for="nametroop">NameTroop</label><input id="nametroop" placeholder="contoh: troop" autocomplete="off"></div>
-      <div class="field"><label for="start">Awal</label><input id="start" type="number" min="1" value="1"></div>
-      <div class="field"><label for="end">Akhir</label><input id="end" type="number" min="1" value="10"></div>
+      <div class="field"><label for="start">Awal</label><input id="start" type="number" step="1" value="1"></div>
+      <div class="field"><label for="end">Akhir</label><input id="end" type="number" step="1" value="10"></div>
       <div class="field"><label>&nbsp;</label><button id="generateTroop" class="primary">SETTROOP</button></div>
     </div>
     <div class="setting-row pass-row">
@@ -87,7 +87,7 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
 
   <div class="panel">
     <div class="setting-row save-row">
-      <div class="field"><label for="saveLoad">SaveLoad</label><input id="saveLoad" placeholder="Nama simpanan, contoh: akun1" autocomplete="off"></div>
+      <div class="field"><label for="saveLoad">SaveLoad</label><input id="saveLoad" placeholder="Nama simpanan, contoh: akun1" autocomplete="off"><input id="loadFile" type="file" accept=".json,application/json" style="display:none"></div>
       <div class="field"><label>&nbsp;</label><button id="saveConfig" class="primary">SAVE</button></div>
       <div class="field"><label>&nbsp;</label><button id="loadConfig">LOAD</button></div>
     </div>
@@ -291,7 +291,19 @@ function render(){for(let i=0;i<N;i++){insertRow(i)}}
 function insertRow(i){rows.insertAdjacentHTML("beforeend",`<tr><td>${i+1}</td><td><input id="user-${i}" placeholder="Username ${i+1}" autocomplete="off"></td><td class="password-cell"><div class="password-wrap"><input id="pass-${i}" type="password" placeholder="Password ${i+1}" autocomplete="new-password"><span id="balance-${i}" class="wallet-caption" title="Saldo">—</span></div></td><td style="text-align:center"><span id="status-${i}" class="status-balloon offline" title="OFFLINE" aria-label="OFFLINE"></span></td></tr>`) }
 function cred(i){return{username:document.getElementById(`user-${i}`).value.trim(),password:document.getElementById(`pass-${i}`).value}}
 function getRoom(){const room=roomEl.value.trim();if(!room){alert("Isi Room");return null}return room}
-function getRange(){let a=parseInt(document.getElementById("start").value,10),b=parseInt(document.getElementById("end").value,10);if(!Number.isInteger(a)||a<1)a=1;if(!Number.isInteger(b)||b<1)b=a+9;if(b<a)b=a;if(b-a+1>N){b=a+N-1;document.getElementById("end").value=b;log(0,`Maksimal 10 ID. Rentang dibatasi ke ${a}-${b}`)}return[a,b]}
+function getRange(){
+  const a=Number(document.getElementById("start").value);
+  const b=Number(document.getElementById("end").value);
+  if(!Number.isInteger(a)||!Number.isInteger(b)){
+    alert("Awal dan Akhir harus berupa angka bulat.");
+    return null;
+  }
+  if(b-a+1!==N){
+    alert(`Rentang harus tepat ${N} ID. Contoh: Awal 5, Akhir 14.`);
+    return null;
+  }
+  return [a,b];
+}
 function refreshUserList(){}
 function updateTargetCount(){targetCount.textContent=targetList.querySelectorAll(".target-item").length}
 function targetHas(username){return [...targetList.querySelectorAll(".target-item")].some(o=>o.dataset.username===username)}
@@ -347,8 +359,29 @@ function clearTargets(){
   if(restored.length) showUsers(restored,false); else { userList.innerHTML=""; userCount.textContent="0"; }
   log(0,`TARGET dihapus: ${restored.length} username dikembalikan ke USER`);
 }
-function generateTroop(){const prefix=document.getElementById("nametroop").value.trim();if(!prefix){alert("Isi NameTroop");return}const[a,b]=getRange();for(let i=0;i<N;i++){document.getElementById(`user-${i}`).value="";document.getElementById(`pass-${i}`).value=""}let slot=0;for(let n=a;n<=b&&slot<N;n++,slot++){const u=prefix+n;document.getElementById(`user-${slot}`).value=u;log(slot,`Username diisi: ${u}`)}refreshUserList()}
-function setPass(){const pw=document.getElementById("passwordAll").value;if(!pw){alert("Isi PasswordAll");return}const[a,b]=getRange();let slot=0;for(let n=a;n<=b&&slot<N;n++,slot++)document.getElementById(`pass-${slot}`).value=pw;log(0,`Password diisi untuk ${b-a+1} ID (${a}-${b})`)}
+function generateTroop(){
+  const prefix=document.getElementById("nametroop").value.trim();
+  if(!prefix){alert("Isi NameTroop");return}
+  const range=getRange();
+  if(!range)return;
+  const [a,b]=range;
+  for(let i=0;i<N;i++){
+    document.getElementById(`user-${i}`).value="";
+    document.getElementById(`pass-${i}`).value="";
+  }
+  for(let slot=0,n=a;n<=b;slot++,n++){
+    const u=prefix+n;
+    document.getElementById(`user-${slot}`).value=u;
+    log(slot,`Username diisi: ${u}`);
+  }
+  refreshUserList();
+}
+function setPass(){
+  const pw=document.getElementById("passwordAll").value;
+  if(!pw){alert("Isi PasswordAll");return}
+  for(let i=0;i<N;i++)document.getElementById(`pass-${i}`).value=pw;
+  log(0,`Password diisi untuk ${N} ID`);
+}
 function send(i,o,hideLog=false){const c=clients[i];if(!c.ws||c.ws.readyState!==WebSocket.OPEN){log(i,"Socket belum OPEN");return false}c.ws.send(JSON.stringify(o));if(hideLog)log(i,`SEND ${o.type}`);else log(i,"SEND "+JSON.stringify(o));return true}
 function stopPing(i){if(clients[i].pingTimer){clearInterval(clients[i].pingTimer);clients[i].pingTimer=null}}
 function startPing(i){stopPing(i);clients[i].pingTimer=setInterval(()=>{if(clients[i].loggedIn)send(i,{type:"ping"},true)},40000)}
@@ -510,47 +543,79 @@ function handleKickProgress(m){
   }
 }
 
-async function saveConfig(){
-  const name=saveLoadEl.value.trim();
-  if(!name){alert("Isi nama SaveLoad");return}
-  const cfg={
+function safeDownloadName(name){
+  let n=String(name||"migsock").trim().replace(/[^a-zA-Z0-9._ -]/g,"_");
+  if(!n)n="migsock";
+  if(!/\.json$/i.test(n))n+=".json";
+  return n;
+}
+function collectConfig(){
+  const accounts=[];
+  for(let i=0;i<N;i++){
+    accounts.push({
+      username:document.getElementById(`user-${i}`).value,
+      password:document.getElementById(`pass-${i}`).value
+    });
+  }
+  return {
+    version:2,
     nameTroop:document.getElementById("nametroop").value,
-    start:document.getElementById("start").value,
-    end:document.getElementById("end").value,
-    passwordAll:document.getElementById("passwordAll").value
+    start:Number(document.getElementById("start").value),
+    end:Number(document.getElementById("end").value),
+    passwordAll:document.getElementById("passwordAll").value,
+    accounts
   };
-  try{
-    const r=await fetch("/api/config/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,config:cfg})});
-    const out=await r.json();
-    if(!r.ok||!out.ok)throw new Error(out.error||"Gagal menyimpan");
-    alert(`SAVE OK\n${out.filename}\ntersimpan di Download HP`);
-  }catch(e){
-    // Fallback: browser download if Termux shared storage is not available.
-    const filename=(name.toLowerCase().endsWith(".json")?name:name+".json").replace(/[^a-zA-Z0-9._ -]/g,"_");
-    const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-    alert(`SAVE dibuat sebagai ${filename}. Jika file tidak masuk Download, jalankan termux-setup-storage.`);
-  }
 }
-async function loadConfig(){
+function saveConfig(){
   const name=saveLoadEl.value.trim();
-  if(!name){alert("Isi nama SaveLoad");return}
-  try{
-    const r=await fetch(`/api/config/load?name=${encodeURIComponent(name)}`);
-    const out=await r.json();
-    if(!r.ok||!out.ok)throw new Error(out.error||"File tidak ditemukan");
-    const cfg=out.config||{};
-    document.getElementById("nametroop").value=cfg.nameTroop||"";
-    document.getElementById("start").value=cfg.start||1;
-    document.getElementById("end").value=cfg.end||10;
-    document.getElementById("passwordAll").value=cfg.passwordAll||"";
-    generateTroop();
-    setPass();
-    alert(`LOAD OK\n${out.filename}\nberhasil diambil dari Download HP`);
-  }catch(e){
-    alert(`LOAD gagal: ${e.message}\nPastikan file ada di folder Download HP.`);
-  }
+  if(!name){alert("Isi nama file di SaveLoad");return}
+  const range=getRange();
+  if(!range)return;
+  const cfg=collectConfig();
+  const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=safeDownloadName(name);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  alert(`SAVE OK\nFile ${safeDownloadName(name)} dikirim ke Download HP.`);
 }
+function applyConfig(cfg){
+  const accounts=Array.isArray(cfg.accounts)?cfg.accounts:[];
+  const start=Number(cfg.start), end=Number(cfg.end);
+  if(!Number.isInteger(start)||!Number.isInteger(end)||end-start+1!==N)
+    throw new Error(`File harus berisi rentang tepat ${N} ID.`);
+  document.getElementById("nametroop").value=cfg.nameTroop||"";
+  document.getElementById("start").value=start;
+  document.getElementById("end").value=end;
+  document.getElementById("passwordAll").value=cfg.passwordAll||"";
+  for(let i=0;i<N;i++){
+    const a=accounts[i]||{};
+    document.getElementById(`user-${i}`).value=String(a.username||"");
+    document.getElementById(`pass-${i}`).value=String(a.password||"");
+  }
+  refreshUserList();
+}
+function loadConfig(){
+  document.getElementById("loadFile").click();
+}
+document.getElementById("loadFile").addEventListener("change",async function(e){
+  const file=e.target.files?.[0];
+  if(!file)return;
+  try{
+    const cfg=JSON.parse(await file.text());
+    applyConfig(cfg);
+    document.getElementById("saveLoad").value=file.name.replace(/\.json$/i,"");
+    alert(`LOAD OK\n${file.name}\n10 akun berhasil dimuat dari penyimpanan HP.`);
+  }catch(err){
+    alert("LOAD gagal: "+(err?.message||"File JSON tidak valid."));
+  }finally{
+    e.target.value="";
+  }
+});
 document.getElementById("loginAll").onclick=loginAll;document.getElementById("logoutAll").onclick=logoutAll;document.getElementById("enterAll").onclick=enterAll;document.getElementById("leaveAll").onclick=leaveAll;document.getElementById("generateTroop").onclick=generateTroop;document.getElementById("setPass").onclick=setPass;document.getElementById("listRoom").onclick=listUser;document.getElementById("saveConfig").onclick=saveConfig;document.getElementById("loadConfig").onclick=loadConfig;document.getElementById("clearTarget").onclick=clearTargets;document.getElementById("kickAll").onclick=kickAll;document.getElementById("suicideToggle").onclick=toggleSuicide;document.getElementById("resetCountdown").onclick=resetCountdownTimer;render();refreshUserList();updateTargetCount();
 </script>
 </body>
