@@ -18,9 +18,10 @@ KICK_RATE_STATE = {}
 SUICIDE_KEYS = set()
 BROWSER_CLIENTS = set()
 
-# Server-authoritative kick limit: maximum 100 kick messages per upstream
-# WebSocket in each 1-second window. This is shared by KICK ALL and SUICIDE.
-KICK_MAX_PER_SECOND = 100
+# Server-authoritative kick limit: 200 kicks/second per upstream WebSocket.
+# Defined directly in app.py so every kick path uses the same limit.
+KICK_MAX_PER_SECOND = 200
+KICK_LIMIT_LABEL = f"{KICK_MAX_PER_SECOND}/socket/second"
 
 DOWNLOAD_DIRS = [
     Path.home() / "storage" / "downloads",
@@ -122,7 +123,7 @@ async def send_upstream(ws, payload):
         return True
 
 async def send_kick(ws, room, target):
-    """Send one room.kick while enforcing 100 kicks/socket/second.
+    """Send one room.kick while enforcing the configured per-socket rate.
 
     The limiter is per upstream WebSocket and shared by all callers, so
     concurrent KICK ALL requests and SUICIDE cannot bypass the limit.
@@ -150,6 +151,78 @@ async def send_kick(ws, room, target):
         "room": room,
         "target_username": target,
     })
+
+async def sandbox_kick(request):
+    """Local-only kick workload simulator. Never opens or writes an upstream WebSocket."""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "JSON tidak valid"}, status=400)
+    targets = [str(x).strip() for x in data.get("targets", []) if str(x).strip()][:10]
+    try:
+        loops = max(1, min(100, int(data.get("loop", 1))))
+        sockets_count = max(1, min(10, int(data.get("sockets", 10))))
+        delay_target = max(0, int(data.get("delayTarget", 0))) / 1000
+        delay_batch = max(0, int(data.get("delayBatch", 0))) / 1000
+    except Exception:
+        return web.json_response({"ok": False, "error": "Parameter sandbox tidak valid"}, status=400)
+    if not targets:
+        return web.json_response({"ok": False, "error": "TARGET wajib diisi untuk sandbox"}, status=400)
+
+    job_id = "sandbox-" + uuid.uuid4().hex[:12]
+    total_jobs = loops * len(targets) * sockets_count
+    socket_reports = {
+        f"SANDBOX-{i+1}": {
+            "totalJobs": loops * len(targets),
+            "dispatchedJobs": 0, "failedJobs": 0,
+            "lastTarget": "", "lastLoop": 0
+        }
+        for i in range(sockets_count)
+    }
+
+    await publish_kick_progress({
+        "jobId": job_id, "phase": "started", "sandbox": True,
+        "totalJobs": total_jobs, "dispatchedJobs": 0, "failedJobs": 0,
+        "websockets": sockets_count, "targets": len(targets), "loop": loops,
+        "burst": 0, "combo": "sandbox",
+        "socketReports": [{"websocket": n, **v} for n, v in socket_reports.items()]
+    })
+
+    dispatched = 0
+    started = asyncio.get_running_loop().time()
+    for loop_no in range(1, loops + 1):
+        for target in targets:
+            for socket_name, stats in socket_reports.items():
+                # Deliberately no upstream/network call: this is a local simulation only.
+                await asyncio.sleep(0)
+                stats["dispatchedJobs"] += 1
+                stats["lastTarget"] = target
+                stats["lastLoop"] = loop_no
+                dispatched += 1
+                await publish_kick_progress({
+                    "jobId": job_id, "phase": "progress", "sandbox": True,
+                    "totalJobs": total_jobs, "dispatchedJobs": dispatched,
+                    "failedJobs": 0, "websockets": sockets_count,
+                    "target": target, "loop": loop_no, "websocket": socket_name,
+                    "socketStats": dict(stats)
+                })
+                if delay_target:
+                    await asyncio.sleep(delay_target)
+        if loop_no < loops and delay_batch:
+            await asyncio.sleep(delay_batch)
+
+    elapsed = max(0.000001, asyncio.get_running_loop().time() - started)
+    await publish_kick_progress({
+        "jobId": job_id, "phase": "done", "sandbox": True,
+        "totalJobs": total_jobs, "dispatchedJobs": dispatched, "failedJobs": 0,
+        "websockets": sockets_count, "elapsedMs": round(elapsed * 1000, 3),
+        "socketReports": [{"websocket": n, **v} for n, v in socket_reports.items()]
+    })
+    return web.json_response({
+        "ok": True, "sandbox": True, "jobId": job_id, "totalJobs": total_jobs,
+        "websockets": sockets_count, "elapsedMs": round(elapsed * 1000, 3)
+    })
+
 
 async def publish_kick_progress(payload):
     """Broadcast real backend kick progress to every connected browser socket."""
@@ -226,7 +299,7 @@ async def kick_loop(request):
     progress = {"jobId": job_id, "phase": "started", "totalJobs": total_jobs,
                 "dispatchedJobs": 0, "failedJobs": 0, "websockets": len(sockets),
                 "targets": len(targets), "loop": loops, "burst": burst, "combo": combo,
-                "kickLimit": "100/socket/second", "socketReports": socket_reports()}
+                "kickLimit": KICK_LIMIT_LABEL, "socketReports": socket_reports()}
     await publish_kick_progress(progress)
 
     total = 0
@@ -294,14 +367,14 @@ async def kick_loop(request):
         "jobId": job_id, "phase": "done", "totalJobs": total_jobs,
         "dispatchedJobs": total, "failedJobs": failed,
         "websockets": len(sockets), "targets": len(targets),
-        "loop": loops, "burst": burst, "combo": combo, "kickLimit": "100/socket/second",
+        "loop": loops, "burst": burst, "combo": combo, "kickLimit": KICK_LIMIT_LABEL,
         "socketReports": reports
     })
     return web.json_response({"ok": True, "jobId": job_id, "totalJobs": total_jobs,
                               "dispatchedJobs": total, "failedJobs": failed,
                               "websockets": len(sockets), "targets": len(targets),
                               "loop": loops, "burst": burst, "combo": combo,
-                              "kickLimit": "100/socket/second", "socketReports": reports})
+                              "kickLimit": KICK_LIMIT_LABEL, "socketReports": reports})
 
 async def suicide(request):
     try:
@@ -323,7 +396,7 @@ async def suicide(request):
     jobs = [send_kick(ws, room, target) for ws in sockets]
     results = await asyncio.gather(*jobs, return_exceptions=True)
     sent = sum(1 for x in results if x is True)
-    return web.json_response({"ok": True, "websockets": sent, "target": target, "kickLimit": "100/socket/second"})
+    return web.json_response({"ok": True, "websockets": sent, "target": target, "kickLimit": KICK_LIMIT_LABEL})
 
 async def index(request):
     return web.FileResponse(ROOT / "index.html")
@@ -439,6 +512,7 @@ app.router.add_get("/", index)
 app.router.add_get("/health", health)
 app.router.add_get("/ws", proxy)
 app.router.add_post("/api/kick-loop", kick_loop)
+app.router.add_post("/api/sandbox-kick", sandbox_kick)
 app.router.add_post("/api/config/save", save_config_file)
 app.router.add_get("/api/config/load", load_config_file)
 app.router.add_post("/api/suicide", suicide)
