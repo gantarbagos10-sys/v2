@@ -350,7 +350,7 @@ async def proxy(request):
                     autoping=True,
                     timeout=ws_timeout,
                 )
-                print(f"UPSTREAM CONNECTED attempt={attempt} protocol={upstream.protocol!r}", flush=True)
+                print(f"UPSTREAM CONNECTED attempt={attempt} protocol={upstream.protocol!r} status={getattr(upstream, "_response", None).status if getattr(upstream, "_response", None) else "?"}", flush=True)
                 break
             except Exception as e:
                 last_error = e
@@ -425,8 +425,18 @@ async def proxy(request):
             await session.close()
     return browser
 
+async def health(request):
+    return web.json_response({
+        "ok": True,
+        "service": "migsock",
+        "port": PORT,
+        "upstream": API_URL,
+        "ws_path": "/ws",
+    })
+
 app = web.Application()
 app.router.add_get("/", index)
+app.router.add_get("/health", health)
 app.router.add_get("/ws", proxy)
 app.router.add_post("/api/kick-loop", kick_loop)
 app.router.add_post("/api/config/save", save_config_file)
@@ -435,5 +445,5 @@ app.router.add_post("/api/suicide", suicide)
 app.router.add_static("/static/", ROOT)
 
 if __name__ == "__main__":
-    print(f"migsock running at http://127.0.0.1:{PORT}", flush=True)
+    print(f"migsock listening on 0.0.0.0:{PORT}", flush=True)
     web.run_app(app, host="0.0.0.0", port=PORT)
