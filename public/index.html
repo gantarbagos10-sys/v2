@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>migsock</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html{background:#020617}body{margin:0;background:radial-gradient(circle at 20% 0%,#172554 0,#0f172a 38%,#020617 100%);background-attachment:fixed;color:#e5e7eb;font:14px Arial,sans-serif;min-height:100vh}.wrap{width:100%;max-width:920px;margin:auto;padding:10px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;padding:8px 4px;animation:slideDown .45s ease-out}h1{margin:0;font-size:24px;letter-spacing:.3px}.api{font-size:10px;color:#94a3b8;text-align:right}.panel{background:rgba(15,23,42,.88);border:1px solid #263449;border-radius:14px;padding:11px;margin-bottom:10px;box-shadow:0 8px 24px rgba(0,0,0,.22);backdrop-filter:blur(8px);animation:fadeUp .45s ease both}.panel:nth-of-type(2){animation-delay:.04s}.panel:nth-of-type(3){animation-delay:.08s}.panel:nth-of-type(4){animation-delay:.12s}.panel:nth-of-type(5){animation-delay:.16s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field label{display:block;margin-bottom:4px;color:#cbd5e1;font-size:12px}.field.wide{grid-column:1/-1}
+input,button,select{font:inherit;border-radius:10px;border:1px solid #334155}input{width:100%;background:#080f1d;color:#fff;padding:10px;min-height:42px;outline:none;transition:border-color .2s,box-shadow .2s,transform .2s}input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.16)}button{padding:10px 12px;background:#1e293b;color:#fff;cursor:pointer;min-height:42px;font-weight:700;transition:transform .15s ease,filter .15s ease,box-shadow .15s ease}button:hover{filter:brightness(1.12);box-shadow:0 5px 14px rgba(0,0,0,.22)}button:active{transform:scale(.96)}.primary{background:#2563eb}.danger{background:#b91c1c}.green{background:#166534}
+.cmdrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.timer-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.timer-tools .field{min-width:0}.timer-tools select{width:100%;min-height:42px;background:#080f1d;color:#fff;padding:10px;border:1px solid #334155}.cmdrow button{width:100%}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.actions button{width:100%}
+.roomrow{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,minmax(72px,92px));gap:7px;align-items:end}.room-actions{margin-top:8px}.timer-grid{gap:7px}.kick-command{grid-template-columns:1fr 1fr}.kick-command input{min-width:0}.reset-timer{background:#475569}.suicide-off{background:#475569}.suicide-on{background:#166534}
+.listtitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.listtitle span{color:#cbd5e1;font-size:12px}
+.lists-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+#userList,#targetList{width:100%;height:190px;background:rgba(2,6,23,.92);color:#e5e7eb;padding:5px;border-radius:10px;border:1px solid #334155;overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain}
+#targetList .target-item{display:flex;align-items:center;padding:8px 9px;border-bottom:1px solid #1f2937;line-height:1.2;word-break:break-word;animation:itemIn .22s ease both}
+#targetList .target-item:last-child{border-bottom:0}
+#targetList .empty{color:#64748b;padding:7px 8px}
+.trash-btn{width:34px;min-height:30px;height:30px;padding:3px 6px;font-size:17px;line-height:1;border-radius:7px}
+#userList .user-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-bottom:1px solid #1f2937;line-height:1.2;word-break:break-word;animation:itemIn .22s ease both}
+#userList .user-item:last-child{border-bottom:0}
+#userList .user-check{width:19px;min-width:19px;height:19px;min-height:19px;margin:0;accent-color:#3b82f6;cursor:pointer}
+#userList .empty{color:#64748b;padding:7px 8px}
+table{width:100%;border-collapse:collapse;background:#111827;border-radius:10px;overflow:hidden}th,td{padding:7px;border-bottom:1px solid #1f2937;text-align:left}th{color:#94a3b8;font-size:11px}
+td input{padding:8px;min-height:36px}.kick-progress{display:flex;flex-direction:column;gap:8px}.kick-progress-head{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:12px;color:#cbd5e1}.kick-overall{display:flex;flex-wrap:wrap;gap:6px;font-size:11px;color:#94a3b8}.kick-overall b{color:#fff}.kick-socket-reports{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.kick-socket{background:#0b1220;border:1px solid #263449;border-radius:8px;padding:6px;min-width:0}.kick-socket-head{display:flex;justify-content:space-between;gap:5px;align-items:center;margin-bottom:4px}.kick-socket-name{font-weight:800;color:#fff;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kick-socket-state{font-size:8px;font-weight:800;white-space:nowrap}.kick-socket-track{width:100%;height:7px;background:#020617;border:1px solid #334155;border-radius:999px;overflow:hidden}.kick-socket-fill{height:100%;width:0%;background:#22c55e;transition:none}.kick-socket-detail{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:9px}.kick-socket-stat{background:transparent;padding:0;min-width:0}.kick-socket-stat b{display:inline;font-size:9px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kick-socket-stat span{display:none}.kick-socket-last{margin-top:4px;font-size:8px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.password-cell{min-width:0}.password-wrap{display:flex;align-items:center;gap:5px;min-width:0}.password-wrap input{flex:1;min-width:0}.wallet-caption{display:inline-flex;align-items:center;justify-content:center;min-width:30px;padding:0 3px;font-size:14px;color:#22d3ee;white-space:nowrap;font-weight:800;flex:0 0 auto}.password-wrap input{min-width:0}.status-balloon{display:inline-block;width:11px;height:11px;border-radius:50%;background:#64748b;box-shadow:0 0 0 2px rgba(100,116,139,.14);vertical-align:middle}.status-balloon.connecting{background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.14)}.status-balloon.online{background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.14);animation:pulseOnline 1.8s ease-in-out infinite}.status-balloon.error{background:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.14)}.status-balloon.offline{background:#64748b}.kick-progress-live{color:#22c55e;font-weight:700}.kick-progress-done{color:#60a5fa;font-weight:700}.kick-progress-error{color:#f87171;font-weight:700}.status{font-weight:bold}.offline{color:#94a3b8}.connecting{color:#f59e0b}.online{color:#22c55e}.error{color:#ef4444}
+.status{transition:color .2s}.online{animation:pulseOnline 1.8s ease-in-out infinite}.listtitle{min-height:30px}.listtitle span:first-child{font-weight:800;letter-spacing:.3px}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}@keyframes itemIn{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}@keyframes pulseOnline{0%,100%{opacity:1}50%{opacity:.55}}.room-timer-row{display:grid;grid-template-columns:1fr 1.45fr 58px;gap:7px;align-items:end;margin-top:8px}.duel-settings-row{display:grid;grid-template-columns:1fr 1fr 1fr 1.25fr;gap:7px;align-items:end;margin-top:8px}.kick-mode-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,.72fr);gap:7px;align-items:stretch;margin-top:8px}.kick-mode-stack{display:grid;grid-template-rows:1fr 1fr;gap:7px;min-width:0}.kick-mode-stack .field{min-width:0}.kick-mode-stack select{width:100%;min-height:42px}.kickall-side{width:100%;height:100%;min-height:91px;font-size:13px;font-weight:900;letter-spacing:.5px}.suicide-btn{width:100%;min-height:42px}.countdown-field label{font-size:14px;font-weight:900;letter-spacing:.8px}.countdown-field input{font-size:18px;font-weight:900;text-align:center;min-height:42px}.reset-field button{width:100%;min-height:42px;font-size:25px;font-weight:900;padding:0}.reset-timer{display:flex;align-items:center;justify-content:center}
+@media(max-width:600px){body{font-size:13px}.wrap{padding:7px}.top{align-items:flex-start;padding:5px 3px}.top h1{font-size:21px}.api{max-width:155px;line-height:1.25}.panel{padding:9px;border-radius:12px;margin-bottom:8px}.grid{grid-template-columns:1fr 1fr;gap:7px}.roomrow{grid-template-columns:minmax(0,1fr) 76px 76px 76px}.room-timer-row{grid-template-columns:1fr 1.35fr 48px}.duel-settings-row{grid-template-columns:1fr 1fr 1fr 1.25fr}.suicide-btn{font-size:10px;padding-left:4px;padding-right:4px}.countdown-field label{font-size:13px}.countdown-field input{font-size:17px}.reset-field button{font-size:23px;min-height:40px}.roomrow .field button{width:100%;padding-left:5px;padding-right:5px;font-size:10px}.kick-command{grid-template-columns:1fr 1fr}.kick-mode-layout{grid-template-columns:minmax(0,1.12fr) minmax(108px,.88fr);gap:6px}.kick-mode-stack{gap:6px}.kick-mode-stack select{min-height:40px;font-size:11px;padding-left:8px;padding-right:24px}.kickall-side{min-height:86px;font-size:12px;padding:5px 7px}.actions{grid-template-columns:1fr 1fr}.lists-grid{gap:7px}#userList,#targetList{height:210px}.listtitle span{font-size:11px}.trash-btn{width:32px;min-height:30px;height:30px;font-size:16px}table{font-size:11px}th:nth-child(1),td:nth-child(1){width:25px}td,th{padding:4px}td input{padding:7px;font-size:11px;min-height:34px}.kick-socket-reports{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.kick-socket{padding:5px}.kick-socket-name{font-size:9px}.kick-socket-state{font-size:7px}.kick-socket-detail{font-size:8px}.kick-socket-stat b{font-size:8px}.kick-socket-last{font-size:7px}.wallet-caption{font-size:12px;min-width:28px}.status-balloon{width:10px;height:10px}}
+@media(max-width:380px){.grid{grid-template-columns:1fr}.field.wide{grid-column:auto}.roomrow{grid-template-columns:minmax(0,1fr) 68px 68px 68px}.room-timer-row{grid-template-columns:1fr 1.25fr 46px}.roomrow .field button{font-size:9px;padding-left:3px;padding-right:3px}.actions{grid-template-columns:1fr}.cmdrow{grid-template-columns:1fr}.timer-tools{grid-template-columns:1fr 1fr}.lists-grid{grid-template-columns:1fr}#userList,#targetList{height:180px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+    .login-actions{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .login-actions button{min-height:42px}
+
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px;padding:4px;background:rgba(15,23,42,.88);border:1px solid #263449;border-radius:14px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(10px)}
+    .tab-btn{min-height:44px;border:0;background:transparent;color:#94a3b8;border-radius:10px;font-weight:800;letter-spacing:.4px}
+    .tab-btn.active{background:#2563eb;color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.28)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block;animation:fadeUp .25s ease both}
+
+/* ===== PREMIUM UI SKIN ===== */
+:root{--bg:#030712;--panel:rgba(10,17,32,.82);--panel2:rgba(15,23,42,.74);--line:rgba(148,163,184,.16);--muted:#8190a8;--text:#f8fafc;--blue:#3b82f6;--cyan:#22d3ee;--violet:#8b5cf6;--green:#22c55e;--red:#ef4444}
+html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(900px 450px at 8% -10%,rgba(59,130,246,.24),transparent 60%),radial-gradient(700px 420px at 100% 15%,rgba(139,92,246,.18),transparent 58%),radial-gradient(700px 500px at 50% 100%,rgba(34,211,238,.08),transparent 65%),#020617;letter-spacing:.1px}.wrap{max-width:980px;padding:14px}.hero{position:relative;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 4px 14px}.brand-wrap{display:flex;align-items:center;gap:11px}.brand-mark{width:72px;height:54px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;border-radius:12px;background:rgba(2,6,23,.18);overflow:hidden;box-shadow:0 0 22px rgba(59,130,246,.18),inset 0 1px rgba(255,255,255,.08)}.brand-mark img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}.top h1{font-size:24px;font-weight:900;letter-spacing:1.5px}.brand-sub{margin-top:2px;color:#60a5fa;font-size:10px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase}.brand-sub span{color:#3b82f6;margin:0 3px}.hero-chip{display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid rgba(34,197,94,.2);border-radius:999px;background:rgba(34,197,94,.07);font-size:9px;font-weight:900;letter-spacing:1px;color:#86efac}.hero-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:pulseOnline 1.8s ease-in-out infinite}
+.tabs{top:7px;margin-bottom:12px;padding:5px;border-radius:16px;background:rgba(3,7,18,.74);border:1px solid rgba(148,163,184,.14);box-shadow:0 12px 32px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.04)}.tab-btn{position:relative;min-height:46px;border-radius:12px;color:#71809a;font-size:12px;letter-spacing:1.1px;background:transparent}.tab-btn.active{background:linear-gradient(135deg,#2563eb,#4f46e5);box-shadow:0 8px 24px rgba(37,99,235,.28),inset 0 1px rgba(255,255,255,.22);color:white}.tab-btn.active:after{content:"";position:absolute;left:25%;right:25%;bottom:3px;height:2px;border-radius:9px;background:rgba(255,255,255,.85)}
+.panel{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(15,23,42,.88),rgba(5,11,23,.82));border:1px solid var(--line);border-radius:17px;padding:12px;margin-bottom:11px;box-shadow:0 14px 34px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(14px)}.panel:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,rgba(59,130,246,.035),transparent 35%,rgba(139,92,246,.025));}.panel:hover{border-color:rgba(96,165,250,.22)}
+.field label,.listtitle span{font-size:9px!important;text-transform:uppercase;letter-spacing:1px;font-weight:850;color:#7f8da5!important}.field label{margin-bottom:5px}input,select{background:rgba(2,6,23,.72);border-color:rgba(100,116,139,.27);border-radius:11px;color:#f8fafc;box-shadow:inset 0 1px rgba(255,255,255,.025)}input:hover,select:hover{border-color:rgba(96,165,250,.38)}input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12),0 0 18px rgba(59,130,246,.08)}button{border-color:rgba(148,163,184,.16);border-radius:11px;background:linear-gradient(180deg,#1b273c,#111a2b);box-shadow:0 6px 14px rgba(0,0,0,.14),inset 0 1px rgba(255,255,255,.06);font-size:11px;letter-spacing:.35px}button:hover{filter:brightness(1.13);transform:translateY(-1px)}button:active{transform:translateY(1px) scale(.98)}button.primary{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:rgba(147,197,253,.22);box-shadow:0 8px 22px rgba(37,99,235,.23),inset 0 1px rgba(255,255,255,.18)}button.danger{background:linear-gradient(135deg,#dc2626,#991b1b);border-color:rgba(248,113,113,.18);box-shadow:0 8px 22px rgba(220,38,38,.16)}button.green{background:linear-gradient(135deg,#059669,#166534);border-color:rgba(110,231,183,.18)}.reset-timer{background:linear-gradient(135deg,#475569,#1e293b)}.suicide-off{background:linear-gradient(135deg,#475569,#1e293b)}.suicide-on{background:linear-gradient(135deg,#059669,#166534)}
+#rows tr{transition:background .18s}#rows tbody tr:hover{background:rgba(59,130,246,.055)}table{background:rgba(3,7,18,.46);border:1px solid rgba(148,163,184,.09);border-radius:13px}th{background:rgba(30,41,59,.42);text-transform:uppercase;letter-spacing:.7px;font-size:9px;padding:9px;color:#71809a}td{border-bottom-color:rgba(51,65,85,.42);padding:7px}.status-balloon{box-shadow:0 0 0 3px rgba(100,116,139,.08)}.status-balloon.online{box-shadow:0 0 0 3px rgba(34,197,94,.1),0 0 12px rgba(34,197,94,.3)}
+#userList,#targetList{background:rgba(2,6,23,.55);border-color:rgba(100,116,139,.2);border-radius:13px}#userList .user-item,#targetList .target-item{border-bottom-color:rgba(51,65,85,.38);transition:background .15s,transform .15s}#userList .user-item:hover,#targetList .target-item:hover{background:rgba(59,130,246,.07);transform:translateX(2px)}#userList .user-check{accent-color:#3b82f6}.trash-btn{background:rgba(220,38,38,.12)!important;border-color:rgba(248,113,113,.18)!important}.kick-progress{gap:10px}.kick-progress-head{font-size:10px;letter-spacing:.8px;text-transform:uppercase}.kick-socket{background:linear-gradient(145deg,rgba(15,23,42,.82),rgba(2,6,23,.72));border-color:rgba(100,116,139,.18);border-radius:10px;box-shadow:inset 0 1px rgba(255,255,255,.025)}.kick-socket-track{background:#020617;border-color:rgba(100,116,139,.18)}
+@media(max-width:600px){.wrap{padding:8px}.hero{padding:8px 2px 11px}.brand-mark{width:60px;height:48px;border-radius:10px}.top h1{font-size:20px}.brand-sub{font-size:8px;letter-spacing:1.1px}.hero-chip{padding:6px 8px;font-size:8px}.panel{border-radius:15px;padding:10px}.tab-btn{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.hero-dot{animation:none}}
+
+
+.setting-row{display:grid;gap:8px;align-items:end}.troop-row{grid-template-columns:minmax(0,2fr) minmax(72px,.8fr) minmax(72px,.8fr) minmax(118px,1.1fr)}.pass-row{grid-template-columns:minmax(0,3fr) minmax(118px,1fr);margin-top:9px}.save-row{grid-template-columns:minmax(0,3fr) minmax(90px,1fr) minmax(90px,1fr)}.setting-row .field{min-width:0}.setting-row input,.setting-row button{width:100%;min-width:0}.setting-row button{white-space:nowrap}
+@media(max-width:560px){.wrap{padding:8px}.troop-row{grid-template-columns:minmax(0,1.65fr) minmax(58px,.7fr) minmax(58px,.7fr) minmax(94px,1fr)}.save-row{grid-template-columns:minmax(0,2fr) minmax(70px,.75fr) minmax(70px,.75fr)}.pass-row{grid-template-columns:minmax(0,2fr) minmax(94px,1fr)}.setting-row{gap:6px}.setting-row input,.setting-row button{font-size:12px;padding-left:8px;padding-right:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top hero">
+    <div class="brand-wrap">
+      <div class="brand-mark"><img src="/logo.webp" alt="MIGSOCK logo"></div>
+      <div>
+        <h1>MIGSOCK</h1>
+        <div class="brand-sub">MIGSOCK DUEL V2</div>
+      </div>
+    </div>
+    <div class="hero-chip"><span class="hero-dot"></span><span>READY</span></div>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Navigasi">
+    <button id="tabSetting" class="tab-btn active" role="tab" aria-selected="true">SETTING</button>
+    <button id="tabDuel" class="tab-btn" role="tab" aria-selected="false">DUEL</button>
+  </div>
+
+  <section id="panelSetting" class="tab-panel active" role="tabpanel">
+  <div class="panel">
+    <div class="setting-row troop-row">
+      <div class="field"><label for="nametroop">NameTroop</label><input id="nametroop" placeholder="contoh: troop" autocomplete="off"></div>
+      <div class="field"><label for="start">Awal</label><input id="start" type="number" min="1" value="1"></div>
+      <div class="field"><label for="end">Akhir</label><input id="end" type="number" min="1" value="10"></div>
+      <div class="field"><label>&nbsp;</label><button id="generateTroop" class="primary">SETTROOP</button></div>
+    </div>
+    <div class="setting-row pass-row">
+      <div class="field"><label for="passwordAll">PasswordAll</label><input id="passwordAll" type="password" placeholder="Password semua ID" autocomplete="new-password"></div>
+      <div class="field"><label>&nbsp;</label><button id="setPass">SETPASS</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="setting-row save-row">
+      <div class="field"><label for="saveLoad">SaveLoad</label><input id="saveLoad" placeholder="Nama simpanan, contoh: akun1" autocomplete="off"></div>
+      <div class="field"><label>&nbsp;</label><button id="saveConfig" class="primary">SAVE</button></div>
+      <div class="field"><label>&nbsp;</label><button id="loadConfig">LOAD</button></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <table>
+      <thead><tr><th>#</th><th>Username</th><th>Password / Saldo</th><th>Status</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="actions login-actions">
+      <button class="primary" id="loginAll">LOGIN ALL</button>
+      <button class="danger" id="logoutAll">LOGOUT ALL</button>
+    </div>
+  </div>
+
+  </section>
+
+  <section id="panelDuel" class="tab-panel" role="tabpanel">
+  <div class="panel">
+    <div class="lists-grid">
+      <div>
+        <div class="listtitle"><span>USER</span><span id="userCount">0</span></div>
+        <div id="userList" class="user-box" aria-label="List username"></div>
+      </div>
+      <div>
+        <div class="listtitle"><span>TARGET</span><span style="display:flex;align-items:center;gap:6px"><span id="targetCount">0</span><button id="clearTarget" class="danger trash-btn" title="Hapus semua username TARGET" aria-label="Hapus semua username TARGET">🗑️</button></span></div>
+        <div id="targetList" aria-label="List target room"></div>
+      </div>
+    </div>
+    <div class="roomrow room-controls-bottom">
+      <div class="field"><label for="room">Room</label><input id="room" placeholder="MIG33" autocomplete="off"></div>
+      <div class="field"><label>&nbsp;</label><button id="enterAll">ENTER ALL</button></div>
+      <div class="field"><label>&nbsp;</label><button id="leaveAll">LEAVE ALL</button></div>
+      <div class="field"><label>&nbsp;</label><button id="listRoom" class="green">LISTUSER</button></div>
+    </div>
+    <div class="room-timer-row">
+      <div class="field"><label for="timerKickall">Timer KickAll</label><input id="timerKickall" type="number" min="0" value="900"></div>
+      <div class="field countdown-field"><label for="countdown">COUNTDOWN</label><input id="countdown" type="number" min="0" value="60000" readonly></div>
+      <div class="field reset-field"><label>&nbsp;</label><button id="resetCountdown" class="reset-timer" title="Reset Countdown ke 60000" aria-label="Reset Countdown ke 60000">↻</button></div>
+    </div>
+    <div class="duel-settings-row">
+      <div class="field"><label for="delayTarget">Delay Target</label><input id="delayTarget" type="number" min="0" value="10"></div>
+      <div class="field"><label for="delayBatch">Delay Batch</label><input id="delayBatch" type="number" min="0" value="15"></div>
+      <div class="field"><label for="loopKick">Loop</label><input id="loopKick" type="number" min="1" value="45"></div>
+      <div class="field"><label>&nbsp;</label><button id="suicideToggle" class="suicide-off suicide-btn">☠️ SUICIDE OFF</button></div>
+    </div>
+    <div class="kick-mode-layout">
+      <div class="kick-mode-stack">
+        <div class="field"><label for="burstKick">BRUTE</label><select id="burstKick"><option value="0">OFF</option><option value="1">BRUTE1</option><option value="2">BRUTE2</option><option value="3">BRUTE3</option><option value="4">BRUTE4</option><option value="5">BRUTE5</option><option value="6">BRUTE6</option><option value="7">BRUTE7</option><option value="8">BRUTE8</option><option value="9">BRUTE9</option><option value="10">BRUTE10</option></select></div>
+        <div class="field"><label for="comboKick">COMBO</label><select id="comboKick"><option value="off">OFF</option><option value="combo1">COMBO1 · BRUTE2 + BRUTE3</option><option value="combo2">COMBO2 · BRUTE3 + BRUTE4</option></select></div>
+      </div>
+      <button id="kickAll" class="danger kickall-side">KICKALL</button>
+    </div>
+  </div>
+
+
+  <div class="panel">
+    <div class="kick-progress">
+      <div class="kick-progress-head"><span>LIVE KICK — PER WEBSOCKET</span><span id="kickProgressStatus" class="kick-progress-done">IDLE</span></div>
+      <div id="kickSocketReports" class="kick-socket-reports"></div>
+    </div>
+  </div>
+  </section>
+</div>
+
+<script>
+
+const tabSetting=document.getElementById("tabSetting"),tabDuel=document.getElementById("tabDuel"),panelSetting=document.getElementById("panelSetting"),panelDuel=document.getElementById("panelDuel");
+function switchTab(name){
+  const setting=name==="setting";
+  panelSetting.classList.toggle("active",setting); panelDuel.classList.toggle("active",!setting);
+  tabSetting.classList.toggle("active",setting); tabDuel.classList.toggle("active",!setting);
+  tabSetting.setAttribute("aria-selected",String(setting)); tabDuel.setAttribute("aria-selected",String(!setting));
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+tabSetting.onclick=()=>switchTab("setting");
+tabDuel.onclick=()=>switchTab("duel");
+const N=10;
+const clients=Array.from({length:N},()=>({ws:null,loggedIn:false,inRoom:false,pingTimer:null,intentionalClose:false,balance:null}));
+const rows=document.getElementById("rows"),roomEl=document.getElementById("room"),userList=document.getElementById("userList"),targetList=document.getElementById("targetList"),userCount=document.getElementById("userCount"),targetCount=document.getElementById("targetCount"),saveLoadEl=document.getElementById("saveLoad");
+const kickProgressStatus=document.getElementById("kickProgressStatus"),kickProgressDetail=document.getElementById("kickProgressDetail"),kickDispatched=document.getElementById("kickDispatched"),kickFailed=document.getElementById("kickFailed"),kickWs=document.getElementById("kickWs"),kickRate=document.getElementById("kickRate"),kickSocketReports=document.getElementById("kickSocketReports");
+let kickProgressJobs=new Map();let kickProgressSeen=new Set();let kickProgressStartedAt=0;
+const SAVE_PREFIX="migsock_config_";
+let participantUsers=[];
+const COUNTDOWN_DEFAULT=60000;
+let countdownDeadline=0;
+let countdownTimer=null;
+let lastKickEventKey="";
+let countdownKickTriggered=false;
+let suicideEnabled=false;
+let suicideTriggeredKeys=new Set();
+function countdownEl(){return document.getElementById("countdown")}
+function setCountdownValue(v){countdownEl().value=String(Math.max(0,Math.round(v)))}
+function kickEventData(m){const d=m?.data&&typeof m.data==="object"?m.data:m||{};return {
+  type:String(m?.type??d?.type??d?.event_type??"").toLowerCase(),
+  action:String(m?.action??d?.action??"").toLowerCase(),
+  status:String(m?.status_message??d?.status_message??d?.message??"").toLowerCase(),
+  room:String(m?.room??d?.room??"").trim(),
+  target:String(m?.target_username??d?.target_username??d?.username??d?.target??"").trim(),
+  time:String(m?.time??d?.time??d?.timestamp??"").trim()
+}}
+function isKickEvent(m){
+  const d=kickEventData(m);
+  if(!d.type)return false;
+  // Countdown hanya dipicu oleh event room.kick.state dengan pesan "A vote to kick".
+  // Event kick lain, room.kick.result, room.kicked, atau action vote_started tanpa
+  // pesan "A vote to kick" tidak boleh menyalakan countdown.
+  return d.type==="room.kick.state" && d.status.includes("a vote to kick");
+}
+function kickEventKey(m){const d=kickEventData(m);return [d.type,d.action,d.room,d.target,d.time,d.status].join("|")}
+function stopCountdown(reset=true){if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null}countdownDeadline=0;if(reset)setCountdownValue(COUNTDOWN_DEFAULT)}
+function resetCountdownTimer(){stopCountdown(true);lastKickEventKey="";countdownKickTriggered=false;log(0,"Countdown di-reset ke 60000 dan berhenti")}
+function startCountdownFromKick(m){
+  const room=kickEventData(m).room;
+  const selected=roomEl.value.trim();
+  if(room && selected && room.toLowerCase()!==selected.toLowerCase())return;
+  const key=kickEventKey(m);
+  if(key===lastKickEventKey)return;
+  lastKickEventKey=key;
+  countdownKickTriggered=false;
+  if(countdownTimer)clearInterval(countdownTimer);
+  const duration=COUNTDOWN_DEFAULT;
+  const startedAt=Date.now();
+  countdownDeadline=startedAt+duration;
+  setCountdownValue(duration);
+  log(0,`EVENT KICK terdeteksi${room?` di room ${room}`:""}. Countdown mulai ${duration} ms`);
+  const tick=()=>{
+    const remaining=Math.max(0,countdownDeadline-Date.now());
+    setCountdownValue(remaining);
+    const timerKickall=Math.max(0,Number(document.getElementById("timerKickall")?.value)||0);
+    if(!countdownKickTriggered && remaining<=timerKickall){
+      countdownKickTriggered=true;
+      log(0,`Countdown ${remaining} ms <= Timer KickAll ${timerKickall} ms → KICKALL TERPICU`);
+      kickAll();
+    }
+    if(remaining<=0){
+      clearInterval(countdownTimer);
+      countdownTimer=null;
+      countdownDeadline=0;
+      setCountdownValue(COUNTDOWN_DEFAULT);
+      log(0,"Countdown selesai: 0 → reset 60000 dan berhenti");
+    }
+  };
+  countdownTimer=setInterval(tick,25);
+  tick();
+}
+
+function log(i,m){/* UI log removed */}
+function status(i,t,c){const e=document.getElementById(`status-${i}`);e.title=t;e.setAttribute("aria-label",t);e.className="status-balloon "+c}
+function setBalance(i,value){const e=document.getElementById(`balance-${i}`);if(!e)return;e.textContent=String(value??"—")}
+function parseBalanceValue(v){
+  if(v===null||v===undefined)return null;
+  if(typeof v==='number'&&Number.isFinite(v))return String(v);
+  if(typeof v!=='string')return null;
+  const s=v.trim();if(!s)return null;
+  // Accept plain numbers as well as strings such as "3 CR", "0 CR" or "balance: 15".
+  const m=s.match(/-?\d+(?:[.,]\d+)?/);
+  return m?m[0].replace(',','.'):null;
+}
+function extractBalance(m){
+  // The API has returned wallet information in slightly different shapes across
+  // session.ready/account events, so search nested wallet/balance/credit fields.
+  const seen=new Set();
+  const keyScore=(key)=>{
+    const k=String(key||'').toLowerCase();
+    if(k.includes('wallet')||k.includes('balance')||k.includes('credit'))return 3;
+    return 0;
+  };
+  const walk=(v,key='',depth=0)=>{
+    if(depth>7||v===null||v===undefined)return null;
+    if(typeof v==='number'&&Number.isFinite(v)&&keyScore(key)>0)return String(v);
+    if(typeof v==='string'){
+      const k=String(key||'').toLowerCase();
+      if(k.includes('wallet')||k.includes('balance')||k.includes('credit')||/\bcr\b/i.test(v)){
+        return parseBalanceValue(v);
+      }
+      return null;
+    }
+    if(typeof v!=='object')return null;
+    if(seen.has(v))return null;
+    seen.add(v);
+    // First inspect wallet/balance/credit keys, then recurse through the rest.
+    const entries=Array.isArray(v)?v.map((x,i)=>[String(i),x]):Object.entries(v);
+    for(const [k,x] of entries){if(keyScore(k)>0){const out=walk(x,k,depth+1);if(out!==null)return out}}
+    for(const [k,x] of entries){if(keyScore(k)===0){const out=walk(x,k,depth+1);if(out!==null)return out}}
+    return null;
+  };
+  return walk(m);
+}
+function updateBalanceFromMessage(i,m){
+  const type=String(m?.type??"").toLowerCase();
+  if(type==="session.ready"||type.includes("wallet")||type.includes("balance")||type.includes("credit")){
+    const b=extractBalance(m);if(b!==null)setBalance(i,b);
+  }
+}
+function render(){for(let i=0;i<N;i++){insertRow(i)}}
+function insertRow(i){rows.insertAdjacentHTML("beforeend",`<tr><td>${i+1}</td><td><input id="user-${i}" placeholder="Username ${i+1}" autocomplete="off"></td><td class="password-cell"><div class="password-wrap"><input id="pass-${i}" type="password" placeholder="Password ${i+1}" autocomplete="new-password"><span id="balance-${i}" class="wallet-caption" title="Saldo">—</span></div></td><td style="text-align:center"><span id="status-${i}" class="status-balloon offline" title="OFFLINE" aria-label="OFFLINE"></span></td></tr>`) }
+function cred(i){return{username:document.getElementById(`user-${i}`).value.trim(),password:document.getElementById(`pass-${i}`).value}}
+function getRoom(){const room=roomEl.value.trim();if(!room){alert("Isi Room");return null}return room}
+function getRange(){let a=parseInt(document.getElementById("start").value,10),b=parseInt(document.getElementById("end").value,10);if(!Number.isInteger(a)||a<1)a=1;if(!Number.isInteger(b)||b<1)b=a+9;if(b<a)b=a;if(b-a+1>N){b=a+N-1;document.getElementById("end").value=b;log(0,`Maksimal 10 ID. Rentang dibatasi ke ${a}-${b}`)}return[a,b]}
+function refreshUserList(){}
+function updateTargetCount(){targetCount.textContent=targetList.querySelectorAll(".target-item").length}
+function targetHas(username){return [...targetList.querySelectorAll(".target-item")].some(o=>o.dataset.username===username)}
+function addTarget(username){if(!username||targetHas(username)||targetList.querySelectorAll(".target-item").length>=10)return;const e=document.createElement("div");e.className="target-item";e.dataset.username=username;e.textContent=username;targetList.appendChild(e);updateTargetCount()}
+function moveUserToTarget(username,row){addTarget(username);if(row&&row.parentNode)row.parentNode.removeChild(row);userCount.textContent=userList.querySelectorAll(".user-item").length}
+function autoAddMatchingTargets(users){
+  const blockedWsUsers=new Set();
+  for(let i=0;i<N;i++){
+    const u=cred(i).username;
+    if(u)blockedWsUsers.add(u.toLowerCase());
+  }
+  const list=[...new Set((users||[]).filter(Boolean).map(String))].filter(u=>!blockedWsUsers.has(u.toLowerCase()));
+  const groups=new Map();
+  const addGroup=(key,item,type)=>{if(!groups.has(key))groups.set(key,{type,items:[]});groups.get(key).items.push(item)};
+  list.forEach(u=>{
+    let m=u.match(/^(.*?)(\d+)(.*?)$/);
+    if(m){addGroup(`num|${m[1].toLowerCase()}|${m[3].toLowerCase()}`,{u,n:Number(m[2]),width:m[2].length},"num");return}
+    m=u.match(/^(.*?)([A-Za-z])$/);
+    if(m)addGroup(`alpha|${m[1].toLowerCase()}`,{u,ch:m[2].toLowerCase()},"alpha");
+  });
+  const candidates=[];
+  for(const g of groups.values()){
+    const items=g.items;
+    if(items.length<2)continue;
+    if(g.type==="num"){
+      const sorted=[...items].sort((a,b)=>a.n-b.n||a.u.localeCompare(b.u));
+      const nums=[...new Set(sorted.map(x=>x.n))];
+      let run=1,bestRun=1;
+      for(let i=1;i<nums.length;i++){run=nums[i]===nums[i-1]+1?run+1:1;bestRun=Math.max(bestRun,run)}
+      const preferred=sorted.filter(x=>x.n>=1&&x.n<=10);
+      const seq=preferred.length>=2?preferred:sorted;
+      const isWs=/^ws$/i.test((g.items[0].u.match(/^(.*?)\d+.*$/)||[])[1]||"");
+      candidates.push({items:seq,score:1000+(bestRun*20)+(preferred.length*10)+Math.min(items.length,10)*2-(isWs?300:0),type:g.type});
+    }else{
+      const sorted=[...items].sort((a,b)=>a.ch.charCodeAt(0)-b.ch.charCodeAt(0)||a.u.localeCompare(b.u));
+      const distinct=[...new Set(sorted.map(x=>x.ch))];
+      let run=1,bestRun=1;
+      for(let i=1;i<distinct.length;i++){run=distinct[i].charCodeAt(0)===distinct[i-1].charCodeAt(0)+1?run+1:1;bestRun=Math.max(bestRun,run)}
+      candidates.push({items:sorted,score:700+(bestRun*20)+Math.min(items.length,10)*2,type:g.type});
+    }
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];
+  if(!best)return [];
+  const selected=best.items.slice(0,Math.max(0,10-targetList.querySelectorAll(".target-item").length));
+  selected.forEach(x=>addTarget(x.u));
+  return selected.map(x=>x.u);
+}
+function clearTargets(){
+  const restored=[...new Set(participantUsers)];
+  targetList.innerHTML="";
+  updateTargetCount();
+  if(restored.length) showUsers(restored,false); else { userList.innerHTML=""; userCount.textContent="0"; }
+  log(0,`TARGET dihapus: ${restored.length} username dikembalikan ke USER`);
+}
+function generateTroop(){const prefix=document.getElementById("nametroop").value.trim();if(!prefix){alert("Isi NameTroop");return}const[a,b]=getRange();for(let i=0;i<N;i++){document.getElementById(`user-${i}`).value="";document.getElementById(`pass-${i}`).value=""}let slot=0;for(let n=a;n<=b&&slot<N;n++,slot++){const u=prefix+n;document.getElementById(`user-${slot}`).value=u;log(slot,`Username diisi: ${u}`)}refreshUserList()}
+function setPass(){const pw=document.getElementById("passwordAll").value;if(!pw){alert("Isi PasswordAll");return}const[a,b]=getRange();let slot=0;for(let n=a;n<=b&&slot<N;n++,slot++)document.getElementById(`pass-${slot}`).value=pw;log(0,`Password diisi untuk ${b-a+1} ID (${a}-${b})`)}
+function send(i,o,hideLog=false){const c=clients[i];if(!c.ws||c.ws.readyState!==WebSocket.OPEN){log(i,"Socket belum OPEN");return false}c.ws.send(JSON.stringify(o));if(hideLog)log(i,`SEND ${o.type}`);else log(i,"SEND "+JSON.stringify(o));return true}
+function stopPing(i){if(clients[i].pingTimer){clearInterval(clients[i].pingTimer);clients[i].pingTimer=null}}
+function startPing(i){stopPing(i);clients[i].pingTimer=setInterval(()=>{if(clients[i].loggedIn)send(i,{type:"ping"},true)},40000)}
+function loginOne(i){const c=clients[i],x=cred(i);if(!x.username||!x.password){log(i,"Username/password kosong");return}c.intentionalClose=false;c.loggedIn=false;c.inRoom=false;c.balance=null;setBalance(i,"—");stopPing(i);if(c.ws)try{c.ws.close()}catch(e){}status(i,"CONNECTING","connecting");log(i,"Connecting local proxy...");const ws=new WebSocket(`ws://${location.host}/ws`);c.ws=ws;ws.onopen=()=>log(i,"Proxy OPEN; menunggu auth.required");ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){log(i,"RECV non-JSON");return}updateBalanceFromMessage(i,m);if(m.type==="auth.required"){log(i,"RECV auth.required");send(i,{type:"developer.login",username:x.username,password:x.password},true)}else if(m.type==="session.ready"){c.loggedIn=true;c.inRoom=false;status(i,"ONLINE","online");startPing(i);log(i,"LOGIN OK")}else if(m.type==="session.replaced"){c.loggedIn=false;c.inRoom=false;stopPing(i);status(i,"REPLACED","error");log(i,"Session replaced")}else if(m.type==="error"){c.loggedIn=false;c.inRoom=false;stopPing(i);status(i,"ERROR","error");log(i,"API ERROR "+JSON.stringify(m))}};ws.onerror=()=>{status(i,"ERROR","error");log(i,"Local WebSocket proxy error")};ws.onclose=e=>{stopPing(i);c.loggedIn=false;c.inRoom=false;if(!c.intentionalClose)status(i,"CLOSED","offline");log(i,`CLOSED code=${e.code} reason=${e.reason||"-"}`)}}
+function logoutOne(i){const c=clients[i];c.intentionalClose=true;stopPing(i);c.loggedIn=false;c.inRoom=false;c.balance=null;setBalance(i,"—");if(c.ws)try{c.ws.close(1000,"logout")}catch(e){}status(i,"OFFLINE","offline");log(i,"Logout")}
+function loginAll(){for(let i=0;i<N;i++){const x=cred(i);if(x.username&&x.password)setTimeout(()=>loginOne(i),i*200)}}
+function logoutAll(){for(let i=0;i<N;i++)logoutOne(i)}
+function enterAll(){const room=getRoom();if(!room)return;for(let i=0;i<N;i++)if(clients[i].loggedIn)send(i,{type:"room.join",room},true)}
+function leaveAll(){const room=getRoom();if(!room)return;for(let i=0;i<N;i++)if(clients[i].loggedIn)send(i,{type:"room.leave",room},true)}
+function extractUsers(m){
+  let arr=m?.participants??m?.data?.participants??m?.users??m?.data?.users??m?.data?.members??m?.data?.list??m?.data?.results??m?.result?.participants??m?.result?.users??[];
+  if(!Array.isArray(arr)&&arr&&typeof arr==='object')arr=Object.values(arr);
+  if(!Array.isArray(arr))arr=[];
+  return arr.map(x=>typeof x==='string'?x:(x?.username??x?.user??x?.name??x?.nickname??x?.id??"" )).filter(Boolean);
+}
+function showUsers(users,auto=true){
+  participantUsers=[...new Set((users||[]).filter(Boolean))];
+  userList.innerHTML="";
+  const uniq=[...new Set((users||[]).filter(Boolean))];
+  const autoTargets=auto?autoAddMatchingTargets(uniq):[];
+  if(autoTargets.length)log(0,`AUTO TARGET: ${autoTargets.join(", ")}`);
+  const visible=uniq.filter(u=>!targetHas(u));
+  if(!visible.length){
+    const e=document.createElement("div");e.className="empty";e.textContent=uniq.length?"Semua participant sudah dipindahkan ke TARGET":"Tidak ada participant";userList.appendChild(e);
+  }else{
+    visible.forEach(u=>{
+      const e=document.createElement("div");e.className="user-item";
+      const cb=document.createElement("input");cb.type="checkbox";cb.className="user-check";cb.title="Pindahkan ke TARGET";
+      const label=document.createElement("span");label.textContent=u;
+      cb.onchange=()=>{if(cb.checked)moveUserToTarget(u,e)};
+      e.append(cb,label);userList.appendChild(e);
+    });
+  }
+  userCount.textContent=visible.length;
+  updateTargetCount();
+}
+function listUser(){const room=getRoom();if(!room)return;targetList.innerHTML="";updateTargetCount();userList.innerHTML="";userCount.textContent="0";log(0,"LISTUSER: TARGET dikosongkan terlebih dahulu");let sent=0;for(let i=0;i<N;i++)if(clients[i].loggedIn){if(send(i,{type:"room.participants",room},true))sent++}if(!sent)alert("Tidak ada akun yang ONLINE");}
+function listRoom(){listUser()}
+function handleParticipants(m,i){
+  if(m.type!=="room.participants.result"&&m.type!=="room.participants")return false;
+  const users=extractUsers(m);
+  showUsers(users);
+  log(i,`LISTROOM: ${users.length} user`);
+  return true;
+}
+// Patch each socket handler to also process room participant results.
+const oldLoginOne=loginOne;
+loginOne=function(i){const c=clients[i],x=cred(i);if(!x.username||!x.password){log(i,"Username/password kosong");return}c.intentionalClose=false;c.loggedIn=false;c.inRoom=false;c.balance=null;setBalance(i,"—");stopPing(i);if(c.ws)try{c.ws.close()}catch(e){}status(i,"CONNECTING","connecting");log(i,"Connecting local proxy...");const ws=new WebSocket(`ws://${location.host}/ws`);c.ws=ws;ws.onopen=()=>log(i,"Proxy OPEN; menunggu auth.required");ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){log(i,"RECV non-JSON");return}updateBalanceFromMessage(i,m);if(m.type==="kick.progress"){handleKickProgress(m);return}if(m.type==="proxy.error"){status(i,"PROXY ERROR","error");log(i,"PROXY ERROR: "+(m.data?.message||"unknown"));return}if(m.type==="kick.progress"){handleKickProgress(m);return}if(isKickEvent(m)){maybeSuicide(m);startCountdownFromKick(m)}if(handleParticipants(m,i))return;if(m.type==="auth.required"){log(i,"RECV auth.required");send(i,{type:"developer.login",username:x.username,password:x.password},true)}else if(m.type==="session.ready"){c.loggedIn=true;c.inRoom=false;status(i,"ONLINE","online");startPing(i);log(i,"LOGIN OK")}else if(m.type==="room.join.result"){const ok=m.ok===true||m.data?.ok===true||m.data?.joined===true||m.success===true;if(ok){c.inRoom=true;log(i,"ENTER ROOM OK");const r=roomEl.value.trim();if(r)send(i,{type:"room.participants",room:r},true)}else log(i,"ENTER ROOM RESULT "+JSON.stringify(m))}else if(m.type==="room.leave.result"){const ok=m.ok===true||m.data?.ok===true||m.data?.left===true||m.success===true;if(ok){c.inRoom=false;log(i,"LEAVE ROOM OK")}else log(i,"LEAVE ROOM RESULT "+JSON.stringify(m))}else if(m.type==="session.replaced"){c.loggedIn=false;c.inRoom=false;stopPing(i);status(i,"REPLACED","error")}else if(m.type==="error"){c.loggedIn=false;c.inRoom=false;stopPing(i);status(i,"ERROR","error");log(i,"API ERROR "+JSON.stringify(m))}};ws.onerror=()=>{status(i,"ERROR","error");log(i,"Local WebSocket proxy error")};ws.onclose=e=>{stopPing(i);c.loggedIn=false;c.inRoom=false;if(!c.intentionalClose)status(i,"CLOSED","offline");log(i,`CLOSED code=${e.code} reason=${e.reason||"-"}`)}};
+function syncBruteCombo(source){
+  const brute=document.getElementById('burstKick');
+  const combo=document.getElementById('comboKick');
+  if(source==='combo' && combo.value!=='off') brute.value='0';
+  if(source==='brute' && brute.value!=='0') combo.value='off';
+}
+
+document.getElementById('burstKick').addEventListener('change',()=>syncBruteCombo('brute'));
+document.getElementById('comboKick').addEventListener('change',()=>syncBruteCombo('combo'));
+
+async function kickAll(){
+  const room=getRoom();
+  if(!room)return;
+  const targets=[...targetList.querySelectorAll('.target-item')].map(e=>e.dataset.username).filter(Boolean).slice(0,10);
+  if(!targets.length){alert('TARGET kosong');return}
+  const bruteEl=document.getElementById('burstKick');
+  const comboEl=document.getElementById('comboKick');
+  syncBruteCombo(comboEl.value!=='off'?'combo':'brute');
+  const combo=comboEl.value;
+  const brute=Math.min(10,Math.max(1,Number(bruteEl.value)||1));
+  const cfg={room,targets,loop:Math.max(1,Number(document.getElementById('loopKick').value)||1),delayTarget:Math.max(0,Number(document.getElementById('delayTarget').value)||0),delayBatch:Math.max(0,Number(document.getElementById('delayBatch').value)||0),burst:brute,combo};
+  if(combo==='combo1') log(0,`KICKALL COMBO1: BRUTE2 + BRUTE3 berjalan bersamaan & berselingan | ${targets.length} target | loop=${cfg.loop}`);
+  else if(combo==='combo2') log(0,`KICKALL COMBO2: BRUTE3 + BRUTE4 berjalan bersamaan & berselingan | ${targets.length} target | loop=${cfg.loop}`);
+  else log(0,`KICKALL mulai: ${targets.length} target | loop=${cfg.loop} | burst=${cfg.burst} | delayTarget=${cfg.delayTarget} | delayBatch=${cfg.delayBatch}`);
+  try{
+    const r=await fetch('/api/kick-loop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);
+    log(0,`KICKALL selesai/dijadwalkan: ${d.totalJobs??0} dispatch | WS aktif ${d.websockets??0}`);
+  }catch(e){log(0,'KICKALL ERROR: '+e.message);alert('KICKALL gagal: '+e.message)}
+}
+function setSuicide(enabled){
+  suicideEnabled=!!enabled;
+  const b=document.getElementById('suicideToggle');
+  b.textContent=suicideEnabled?'☠️ SUICIDE ON':'☠️ SUICIDE OFF';
+  b.className=suicideEnabled?'suicide-on':'suicide-off';
+  log(0,`SUICIDE ${suicideEnabled?'ON':'OFF'}`);
+}
+function toggleSuicide(){setSuicide(!suicideEnabled)}
+function maybeSuicide(m){
+  if(!suicideEnabled)return;
+  const d=kickEventData(m);
+  if(d.type!=='room.kick.state'||d.action!=='vote_started'||!d.target)return;
+  const room=d.room||roomEl.value.trim();
+  if(!room)return;
+  const own=new Set();
+  for(let i=0;i<N;i++){const u=cred(i).username;if(u)own.add(u.toLowerCase())}
+  if(!own.has(d.target.toLowerCase()))return;
+  const key=[room.toLowerCase(),d.target.toLowerCase(),d.time||d.status].join('|');
+  if(suicideTriggeredKeys.has(key))return;
+  suicideTriggeredKeys.add(key);
+  if(suicideTriggeredKeys.size>100)suicideTriggeredKeys=new Set([...suicideTriggeredKeys].slice(-50));
+  log(0,`SUICIDE: vote_started menarget ${d.target}; kirim suicide ke WS aktif`);
+  fetch('/api/suicide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room,target_username:d.target,key})}).then(async r=>{const x=await r.json().catch(()=>({}));if(!r.ok||x.ok===false)throw new Error(x.error||`HTTP ${r.status}`);log(0,`SUICIDE diproses: ${d.target} | WS aktif ${x.websockets??0}`)}).catch(e=>log(0,'SUICIDE ERROR: '+e.message));
+}
+function renderKickSocketReports(reports, phase){
+  if(!Array.isArray(reports))return;
+  kickSocketReports.innerHTML="";
+  reports.forEach(r=>{
+    const total=Math.max(0,Number(r.totalJobs)||0);
+    const done=Math.max(0,Number(r.dispatchedJobs)||0);
+    const failed=Math.max(0,Number(r.failedJobs)||0);
+    const completed=Math.min(total,done+failed);
+    const pct=total?Math.min(100,(completed/total)*100):0;
+    const state=phase==="done"?(failed?"DONE / FAIL":"DONE"):(completed?"LIVE":"READY");
+    const stateClass=failed&&phase==="done"?"kick-progress-error":(phase==="done"?"kick-progress-done":"kick-progress-live");
+    const el=document.createElement("div");
+    el.className="kick-socket";
+    el.innerHTML=`<div class="kick-socket-head"><span class="kick-socket-name" title="${escapeHtml(String(r.websocket||"WS"))}">${escapeHtml(String(r.websocket||"WS"))}</span><span class="kick-socket-state ${stateClass}">${state}</span></div><div class="kick-socket-track"><div class="kick-socket-fill" style="width:${pct.toFixed(2)}%"></div></div><div class="kick-socket-detail"><div class="kick-socket-stat"><b>${completed} / ${total}</b><span>PROGRESS</span></div><div class="kick-socket-stat"><b>${done}</b><span>OK</span></div><div class="kick-socket-stat"><b>${failed}</b><span>FAIL</span></div></div><div class="kick-socket-last" title="${escapeHtml(String(r.lastTarget||"-"))}">TARGET: ${escapeHtml(String(r.lastTarget||"-"))} · LOOP: ${Number(r.lastLoop)||0}</div>`;
+    kickSocketReports.appendChild(el);
+  });
+}
+function escapeHtml(v){return v.replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]))}
+function handleKickProgress(m){
+  if(!m||m.type!=="kick.progress"||!m.jobId)return;
+  const ss=m.socketStats||{};
+  const sig=[m.jobId,m.phase,m.dispatchedJobs||0,m.failedJobs||0,m.websocket||"",ss.dispatchedJobs||0,ss.failedJobs||0,ss.lastTarget||""].join("|");
+  if(kickProgressSeen.has(sig))return;
+  kickProgressSeen.add(sig);
+  if(kickProgressSeen.size>5000)kickProgressSeen=new Set([...kickProgressSeen].slice(-2500));
+  const total=Math.max(0,Number(m.totalJobs)||0);
+  const done=Math.max(0,Number(m.dispatchedJobs)||0);
+  const failed=Math.max(0,Number(m.failedJobs)||0);
+  if(m.phase==="started"){
+    kickProgressStartedAt=performance.now();
+    kickProgressJobs.clear();
+    renderKickSocketReports(m.socketReports||[],"started");
+  }else if(m.phase==="progress"){
+    const reports=[...kickProgressJobs.values()];
+    const existing=kickProgressJobs.get(String(m.websocket||""))||{websocket:m.websocket,totalJobs:Math.max(0,Number(m.socketStats?.totalJobs)||0),dispatchedJobs:0,failedJobs:0,lastTarget:"",lastLoop:0};
+    if(m.socketStats)kickProgressJobs.set(String(m.websocket||""),{...existing,...m.socketStats});
+    else kickProgressJobs.set(String(m.websocket||""),{...existing,dispatchedJobs:existing.dispatchedJobs+1,lastTarget:m.target||"",lastLoop:m.loop||0});
+    renderKickSocketReports([...kickProgressJobs.values()],"progress");
+  }else if(m.phase==="done"){
+    kickProgressJobs.clear();
+    (m.socketReports||[]).forEach(r=>kickProgressJobs.set(String(r.websocket||""),r));
+    renderKickSocketReports([...kickProgressJobs.values()],"done");
+  }
+  const elapsed=Math.max(0.001,(performance.now()-kickProgressStartedAt)/1000);
+  const rate=Math.round((done+failed)/elapsed);
+  if(kickProgressDetail)kickProgressDetail.textContent=(done+failed)+" / "+total;
+  if(kickDispatched)kickDispatched.textContent=done;
+  if(kickFailed)kickFailed.textContent=failed;
+  if(kickWs)kickWs.textContent=Number(m.websockets)||0;
+  if(kickRate)kickRate.textContent=rate+"/s";
+  if(m.phase==="started"){
+    kickProgressStatus.textContent="RUNNING";kickProgressStatus.className="kick-progress-live";
+  }else if(m.phase==="done"){
+    kickProgressStatus.textContent=failed?"DONE / FAIL":"DONE";
+    kickProgressStatus.className=failed?"kick-progress-error":"kick-progress-done";
+  }else{
+    kickProgressStatus.textContent="LIVE";kickProgressStatus.className="kick-progress-live";
+  }
+}
+
+async function saveConfig(){
+  const name=saveLoadEl.value.trim();
+  if(!name){alert("Isi nama SaveLoad");return}
+  const cfg={
+    nameTroop:document.getElementById("nametroop").value,
+    start:document.getElementById("start").value,
+    end:document.getElementById("end").value,
+    passwordAll:document.getElementById("passwordAll").value
+  };
+  try{
+    const r=await fetch("/api/config/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,config:cfg})});
+    const out=await r.json();
+    if(!r.ok||!out.ok)throw new Error(out.error||"Gagal menyimpan");
+    alert(`SAVE OK\n${out.filename}\ntersimpan di Download HP`);
+  }catch(e){
+    // Fallback: browser download if Termux shared storage is not available.
+    const filename=(name.toLowerCase().endsWith(".json")?name:name+".json").replace(/[^a-zA-Z0-9._ -]/g,"_");
+    const blob=new Blob([JSON.stringify(cfg,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+    alert(`SAVE dibuat sebagai ${filename}. Jika file tidak masuk Download, jalankan termux-setup-storage.`);
+  }
+}
+async function loadConfig(){
+  const name=saveLoadEl.value.trim();
+  if(!name){alert("Isi nama SaveLoad");return}
+  try{
+    const r=await fetch(`/api/config/load?name=${encodeURIComponent(name)}`);
+    const out=await r.json();
+    if(!r.ok||!out.ok)throw new Error(out.error||"File tidak ditemukan");
+    const cfg=out.config||{};
+    document.getElementById("nametroop").value=cfg.nameTroop||"";
+    document.getElementById("start").value=cfg.start||1;
+    document.getElementById("end").value=cfg.end||10;
+    document.getElementById("passwordAll").value=cfg.passwordAll||"";
+    generateTroop();
+    setPass();
+    alert(`LOAD OK\n${out.filename}\nberhasil diambil dari Download HP`);
+  }catch(e){
+    alert(`LOAD gagal: ${e.message}\nPastikan file ada di folder Download HP.`);
+  }
+}
+document.getElementById("loginAll").onclick=loginAll;document.getElementById("logoutAll").onclick=logoutAll;document.getElementById("enterAll").onclick=enterAll;document.getElementById("leaveAll").onclick=leaveAll;document.getElementById("generateTroop").onclick=generateTroop;document.getElementById("setPass").onclick=setPass;document.getElementById("listRoom").onclick=listUser;document.getElementById("saveConfig").onclick=saveConfig;document.getElementById("loadConfig").onclick=loadConfig;document.getElementById("clearTarget").onclick=clearTargets;document.getElementById("kickAll").onclick=kickAll;document.getElementById("suicideToggle").onclick=toggleSuicide;document.getElementById("resetCountdown").onclick=resetCountdownTimer;render();refreshUserList();updateTargetCount();
+</script>
+</body>
+</html>
