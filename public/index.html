@@ -57,7 +57,7 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
 <div class="wrap">
   <div class="top hero">
     <div class="brand-wrap">
-      <div class="brand-mark"><img src="/logo.webp?v=2" alt="MIGSOCK TEAM logo" onerror="this.style.display='none';this.parentElement.classList.add('logo-failed')"></div>
+      <div class="brand-mark"><img src="/static/logo.webp?v=3" alt="MIGSOCK TEAM logo" onerror="this.style.display='none';this.parentElement.classList.add('logo-failed')"></div>
       <div>
         <h1>MIGSOCK</h1>
         <div class="brand-sub">MIGSOCK DUEL V2</div>
@@ -262,7 +262,7 @@ function extractBalance(m){
   };
   const walk=(v,key='',depth=0)=>{
     if(depth>7||v===null||v===undefined)return null;
-    if(typeof v==='number'&&Number.isFinite(v)&&keyScore(key)>0)return String(v);
+    if(typeof v==='number'&&Number.isFinite(v)&&keyScore(key)>0)return String(v/1000);
     if(typeof v==='string'){
       const k=String(key||'').toLowerCase();
       if(k.includes('wallet')||k.includes('balance')||k.includes('credit')||/\bcr\b/i.test(v)){
@@ -290,13 +290,13 @@ function updateBalanceFromMessage(i,m){
 function render(){for(let i=0;i<N;i++){insertRow(i)}}
 function insertRow(i){rows.insertAdjacentHTML("beforeend",`<tr><td>${i+1}</td><td><input id="user-${i}" placeholder="Username ${i+1}" autocomplete="off"></td><td class="password-cell"><div class="password-wrap"><input id="pass-${i}" type="password" placeholder="Password ${i+1}" autocomplete="new-password"><span id="balance-${i}" class="wallet-caption" title="Saldo">—</span></div></td><td style="text-align:center"><span id="status-${i}" class="status-balloon offline" title="OFFLINE" aria-label="OFFLINE"></span></td></tr>`) }
 function cred(i){return{username:document.getElementById(`user-${i}`).value.trim(),password:document.getElementById(`pass-${i}`).value}}
-function getRoom(){const room=roomEl.value.trim();if(!room){alert("Isi Room");return null}return room}
+function getRoom(){const room=roomEl.value.trim();if(!room)return nullreturn room}
 function getRange(){
   const av=String(document.getElementById("start").value||"").trim();
   const bv=String(document.getElementById("end").value||"").trim();
-  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv)){ alert("Awal dan Akhir hanya boleh berisi angka."); return null; }
+  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv))return null;
   const a=Number(av), b=Number(bv);
-  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<a){ alert("Rentang Awal/Akhir tidak valid."); return null; }
+  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<a)return null;
   const values=[];
   for(let i=0;i<N;i++){
     const v=(i===0)?a:(i===N-1)?b:Math.round(a+(b-a)*i/(N-1));
@@ -361,7 +361,7 @@ function clearTargets(){
 }
 function generateTroop(){
   const prefix=document.getElementById("nametroop").value.trim();
-  if(!prefix){alert("Isi NameTroop");return}
+  if(!prefix)return
   const range=getRange();
   if(!range)return;
   for(let i=0;i<N;i++){
@@ -382,7 +382,7 @@ function generateTroop(){
 }
 function setPass(){
   const pw=document.getElementById("passwordAll").value;
-  if(!pw){alert("Isi PasswordAll");return}
+  if(!pw)return
   for(let i=0;i<N;i++)document.getElementById(`pass-${i}`).value=pw;
   log(0,`Password diisi untuk ${N} ID`);
 }
@@ -391,9 +391,9 @@ function stopPing(i){if(clients[i].pingTimer){clearInterval(clients[i].pingTimer
 function startPing(i){stopPing(i);clients[i].pingTimer=setInterval(()=>{if(clients[i].loggedIn)send(i,{type:"ping"},true)},40000)}
 function logoutOne(i){const c=clients[i];c.intentionalClose=true;stopPing(i);c.loggedIn=false;c.inRoom=false;c.balance=null;setBalance(i,"—");if(c.ws)try{c.ws.close(1000,"logout")}catch(e){}status(i,"OFFLINE","offline");log(i,"Logout")}
 function loginAll(){for(let i=0;i<N;i++){const x=cred(i);if(x.username&&x.password)setTimeout(()=>loginOne(i),i*200)}}
-function logoutAll(){for(let i=0;i<N;i++)logoutOne(i)}
+function logoutAll(){resetKickLive();for(let i=0;i<N;i++)logoutOne(i)}
 function enterAll(){const room=getRoom();if(!room)return;for(let i=0;i<N;i++)if(clients[i].loggedIn)send(i,{type:"room.join",room},true)}
-function leaveAll(){const room=getRoom();if(!room)return;for(let i=0;i<N;i++)if(clients[i].loggedIn)send(i,{type:"room.leave",room},true)}
+function leaveAll(){const room=getRoom();if(!room)return;resetKickLive();for(let i=0;i<N;i++)if(clients[i].loggedIn)send(i,{type:"room.leave",room},true)}
 function extractUsers(m){
   let arr=m?.participants??m?.data?.participants??m?.users??m?.data?.users??m?.data?.members??m?.data?.list??m?.data?.results??m?.result?.participants??m?.result?.users??[];
   if(!Array.isArray(arr)&&arr&&typeof arr==='object')arr=Object.values(arr);
@@ -421,7 +421,7 @@ function showUsers(users,auto=true){
   userCount.textContent=visible.length;
   updateTargetCount();
 }
-function listUser(){const room=getRoom();if(!room)return;targetList.innerHTML="";updateTargetCount();userList.innerHTML="";userCount.textContent="0";log(0,"LISTUSER: TARGET dikosongkan terlebih dahulu");let sent=0;for(let i=0;i<N;i++)if(clients[i].loggedIn){if(send(i,{type:"room.participants",room},true))sent++}if(!sent)alert("Tidak ada akun yang ONLINE");}
+function listUser(){const room=getRoom();if(!room)return;targetList.innerHTML="";updateTargetCount();userList.innerHTML="";userCount.textContent="0";log(0,"LISTUSER: TARGET dikosongkan terlebih dahulu");let sent=0;for(let i=0;i<N;i++)if(clients[i].loggedIn){if(send(i,{type:"room.participants",room},true))sent++}if(!sent)return;}
 function listRoom(){listUser()}
 function handleParticipants(m,i){
   if(m.type!=="room.participants.result"&&m.type!=="room.participants")return false;
@@ -446,7 +446,7 @@ async function kickAll(){
   const room=getRoom();
   if(!room)return;
   const targets=[...targetList.querySelectorAll('.target-item')].map(e=>e.dataset.username).filter(Boolean).slice(0,10);
-  if(!targets.length){alert('TARGET kosong');return}
+  if(!targets.length)return
   const bruteEl=document.getElementById('burstKick');
   const comboEl=document.getElementById('comboKick');
   syncBruteCombo(comboEl.value!=='off'?'combo':'brute');
@@ -461,7 +461,7 @@ async function kickAll(){
     const d=await r.json().catch(()=>({}));
     if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);
     log(0,`KICKALL selesai/dijadwalkan: ${d.totalJobs??0} dispatch | WS aktif ${d.websockets??0}`);
-  }catch(e){log(0,'KICKALL ERROR: '+e.message);alert('KICKALL gagal: '+e.message)}
+  }catch(e){log(0,'KICKALL ERROR: '+e.message)}
 }
 function setSuicide(enabled){
   suicideEnabled=!!enabled;
@@ -505,6 +505,19 @@ function renderKickSocketReports(reports, phase){
   });
 }
 function escapeHtml(v){return v.replace(/[&<>'"]/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[ch]))}
+function resetKickLive(){
+  kickProgressJobs.clear();
+  kickProgressSeen.clear();
+  kickProgressStartedAt=0;
+  if(kickSocketReports)kickSocketReports.innerHTML="";
+  if(kickProgressStatus){kickProgressStatus.textContent="IDLE";kickProgressStatus.className="kick-progress-done";}
+  if(kickProgressDetail)kickProgressDetail.textContent="0 / 0";
+  if(kickDispatched)kickDispatched.textContent="0";
+  if(kickFailed)kickFailed.textContent="0";
+  if(kickWs)kickWs.textContent="0";
+  if(kickRate)kickRate.textContent="0/s";
+}
+
 function handleKickProgress(m){
   if(!m||m.type!=="kick.progress"||!m.jobId)return;
   const ss=m.socketStats||{};
@@ -572,7 +585,7 @@ function collectConfig(){
 }
 function saveConfig(){
   const name=saveLoadEl.value.trim();
-  if(!name){alert("Isi nama file di SaveLoad");return}
+  if(!name)return
   const range=getRange();
   if(!range)return;
   const cfg=collectConfig();
@@ -585,7 +598,7 @@ function saveConfig(){
   a.click();
   a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  alert(`SAVE OK\nFile ${safeDownloadName(name)} dikirim ke Download HP.`);
+  
 }
 function applyConfig(cfg){
   const accounts=Array.isArray(cfg.accounts)?cfg.accounts:[];
@@ -614,9 +627,9 @@ document.getElementById("loadFile").addEventListener("change",async function(e){
     const cfg=JSON.parse(await file.text());
     applyConfig(cfg);
     document.getElementById("saveLoad").value=file.name.replace(/\.json$/i,"");
-    alert(`LOAD OK\n${file.name}\n10 akun berhasil dimuat dari penyimpanan HP.`);
+    
   }catch(err){
-    alert("LOAD gagal: "+(err?.message||"File JSON tidak valid."));
+    
   }finally{
     e.target.value="";
   }
