@@ -28,3 +28,18 @@ Buka:
 - Jalankan `termux-setup-storage` satu kali jika akses shared storage belum aktif.
 - Format file: `<nama SaveLoad>.json`.
 - Saldo pada Login Troop hanya menampilkan angka saldo.
+
+
+## SETTROOP
+- Selalu menghasilkan tepat 10 ID.
+- Awal/Akhir boleh memakai angka dengan nol depan, misalnya 01-10.
+- Untuk Awal 11, rentang 10 ID yang valid adalah 11-20; 21-30, dst.
+- Rentang 11-99 penuh berisi 89 angka, sehingga tidak dipakai sebagai satu SETTROOP karena targetnya wajib tepat 10 ID.
+- SaveLoad default: multi1.
+- SAVE mengunduh JSON ke perangkat; LOAD membuka file picker perangkat.
+
+## SETTROOP pola 00-99
+- NameTroop `tai`, Awal `00`, Akhir `99` menghasilkan tepat 10 akun:
+  `tai00`, `tai11`, `tai22`, `tai33`, `tai44`, `tai55`, `tai66`, `tai77`, `tai88`, `tai99`.
+- Rentang normal tetap menghasilkan tepat 10 akun, misalnya `01-10`, `11-20`, `91-100`.
+- SaveLoad default `multi1`.

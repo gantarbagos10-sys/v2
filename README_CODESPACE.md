@@ -39,3 +39,12 @@ Expected login sequence:
 
 If it stops before `RECV auth.required`, inspect the terminal for `UPSTREAM CONNECT...`.
 If it reaches `API ERROR`, the upstream/API response is being received and the error details are shown in the UI log.
+
+
+## SETTROOP
+- Selalu menghasilkan tepat 10 ID.
+- Awal/Akhir boleh memakai angka dengan nol depan, misalnya 01-10.
+- Untuk Awal 11, rentang 10 ID yang valid adalah 11-20; 21-30, dst.
+- Rentang 11-99 penuh berisi 89 angka, sehingga tidak dipakai sebagai satu SETTROOP karena targetnya wajib tepat 10 ID.
+- SaveLoad default: multi1.
+- SAVE mengunduh JSON ke perangkat; LOAD membuka file picker perangkat.
