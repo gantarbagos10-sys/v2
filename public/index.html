@@ -57,7 +57,7 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
 <div class="wrap">
   <div class="top hero">
     <div class="brand-wrap">
-      <div class="brand-mark"><img src="/static/logo.webp?v=3" alt="MIGSOCK TEAM logo" onerror="this.style.display='none';this.parentElement.classList.add('logo-failed')"></div>
+      <div class="brand-mark"><img src="/static/logo.webp" alt="MIGSOCK TEAM logo" onerror="this.style.display='none';this.parentElement.classList.add('logo-failed')"></div>
       <div>
         <h1>MIGSOCK</h1>
         <div class="brand-sub">MIGSOCK DUEL V2</div>
@@ -241,7 +241,7 @@ function startCountdownFromKick(m){
 
 function log(i,m){/* UI log removed */}
 function status(i,t,c){const e=document.getElementById(`status-${i}`);e.title=t;e.setAttribute("aria-label",t);e.className="status-balloon "+c}
-function setBalance(i,value){const e=document.getElementById(`balance-${i}`);if(!e)return;e.textContent=String(value??"—")}
+function setBalance(i,value){const e=document.getElementById(`balance-${i}`);if(!e)return;e.textContent=String(value??"—").replace(/\s*CR\s*$/i,"")}
 function parseBalanceValue(v){
   if(v===null||v===undefined)return null;
   if(typeof v==='number'&&Number.isFinite(v))return String(v);
@@ -249,7 +249,10 @@ function parseBalanceValue(v){
   const s=v.trim();if(!s)return null;
   // Accept plain numbers as well as strings such as "3 CR", "0 CR" or "balance: 15".
   const m=s.match(/-?\d+(?:[.,]\d+)?/);
-  return m?m[0].replace(',','.'):null;
+  if(!m)return null;
+  const n=Number(m[0].replace(',','.'));
+  if(!Number.isFinite(n))return null;
+  return /\bcr\b/i.test(s)?String(n):String(n/1000);
 }
 function extractBalance(m){
   // The API has returned wallet information in slightly different shapes across
@@ -290,13 +293,13 @@ function updateBalanceFromMessage(i,m){
 function render(){for(let i=0;i<N;i++){insertRow(i)}}
 function insertRow(i){rows.insertAdjacentHTML("beforeend",`<tr><td>${i+1}</td><td><input id="user-${i}" placeholder="Username ${i+1}" autocomplete="off"></td><td class="password-cell"><div class="password-wrap"><input id="pass-${i}" type="password" placeholder="Password ${i+1}" autocomplete="new-password"><span id="balance-${i}" class="wallet-caption" title="Saldo">—</span></div></td><td style="text-align:center"><span id="status-${i}" class="status-balloon offline" title="OFFLINE" aria-label="OFFLINE"></span></td></tr>`) }
 function cred(i){return{username:document.getElementById(`user-${i}`).value.trim(),password:document.getElementById(`pass-${i}`).value}}
-function getRoom(){const room=roomEl.value.trim();if(!room)return nullreturn room}
+function getRoom(){const room=roomEl.value.trim();if(!room){return null}return room}
 function getRange(){
   const av=String(document.getElementById("start").value||"").trim();
   const bv=String(document.getElementById("end").value||"").trim();
-  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv))return null;
+  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv)){ return null; }
   const a=Number(av), b=Number(bv);
-  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<a)return null;
+  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<a){ return null; }
   const values=[];
   for(let i=0;i<N;i++){
     const v=(i===0)?a:(i===N-1)?b:Math.round(a+(b-a)*i/(N-1));
@@ -361,7 +364,7 @@ function clearTargets(){
 }
 function generateTroop(){
   const prefix=document.getElementById("nametroop").value.trim();
-  if(!prefix)return
+  if(!prefix){return}
   const range=getRange();
   if(!range)return;
   for(let i=0;i<N;i++){
@@ -382,7 +385,7 @@ function generateTroop(){
 }
 function setPass(){
   const pw=document.getElementById("passwordAll").value;
-  if(!pw)return
+  if(!pw){return}
   for(let i=0;i<N;i++)document.getElementById(`pass-${i}`).value=pw;
   log(0,`Password diisi untuk ${N} ID`);
 }
@@ -421,7 +424,7 @@ function showUsers(users,auto=true){
   userCount.textContent=visible.length;
   updateTargetCount();
 }
-function listUser(){const room=getRoom();if(!room)return;targetList.innerHTML="";updateTargetCount();userList.innerHTML="";userCount.textContent="0";log(0,"LISTUSER: TARGET dikosongkan terlebih dahulu");let sent=0;for(let i=0;i<N;i++)if(clients[i].loggedIn){if(send(i,{type:"room.participants",room},true))sent++}if(!sent)return;}
+function listUser(){const room=getRoom();if(!room)return;targetList.innerHTML="";updateTargetCount();userList.innerHTML="";userCount.textContent="0";log(0,"LISTUSER: TARGET dikosongkan terlebih dahulu");let sent=0;for(let i=0;i<N;i++)if(clients[i].loggedIn){if(send(i,{type:"room.participants",room},true))sent++}if(!sent)return; }
 function listRoom(){listUser()}
 function handleParticipants(m,i){
   if(m.type!=="room.participants.result"&&m.type!=="room.participants")return false;
@@ -446,7 +449,7 @@ async function kickAll(){
   const room=getRoom();
   if(!room)return;
   const targets=[...targetList.querySelectorAll('.target-item')].map(e=>e.dataset.username).filter(Boolean).slice(0,10);
-  if(!targets.length)return
+  if(!targets.length){return}
   const bruteEl=document.getElementById('burstKick');
   const comboEl=document.getElementById('comboKick');
   syncBruteCombo(comboEl.value!=='off'?'combo':'brute');
@@ -517,7 +520,6 @@ function resetKickLive(){
   if(kickWs)kickWs.textContent="0";
   if(kickRate)kickRate.textContent="0/s";
 }
-
 function handleKickProgress(m){
   if(!m||m.type!=="kick.progress"||!m.jobId)return;
   const ss=m.socketStats||{};
@@ -585,7 +587,7 @@ function collectConfig(){
 }
 function saveConfig(){
   const name=saveLoadEl.value.trim();
-  if(!name)return
+  if(!name){return}
   const range=getRange();
   if(!range)return;
   const cfg=collectConfig();
@@ -598,7 +600,6 @@ function saveConfig(){
   a.click();
   a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  
 }
 function applyConfig(cfg){
   const accounts=Array.isArray(cfg.accounts)?cfg.accounts:[];
@@ -627,9 +628,8 @@ document.getElementById("loadFile").addEventListener("change",async function(e){
     const cfg=JSON.parse(await file.text());
     applyConfig(cfg);
     document.getElementById("saveLoad").value=file.name.replace(/\.json$/i,"");
-    
   }catch(err){
-    
+    log(0,"LOAD gagal: "+(err?.message||"File JSON tidak valid."));
   }finally{
     e.target.value="";
   }
