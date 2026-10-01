@@ -214,12 +214,12 @@ function startCountdownFromKick(m){
   countdownKickTriggered=false;
   if(countdownTimer)clearInterval(countdownTimer);
   const duration=COUNTDOWN_DEFAULT;
-  const startedAt=Date.now();
+  const startedAt=performance.now();
   countdownDeadline=startedAt+duration;
   setCountdownValue(duration);
   log(0,`EVENT KICK terdeteksi${room?` di room ${room}`:""}. Countdown mulai ${duration} ms`);
   const tick=()=>{
-    const remaining=Math.max(0,countdownDeadline-Date.now());
+    const remaining=Math.max(0,countdownDeadline-performance.now());
     setCountdownValue(remaining);
     const timerKickall=Math.max(0,Number(document.getElementById("timerKickall")?.value)||0);
     if(!countdownKickTriggered && remaining<=timerKickall){
