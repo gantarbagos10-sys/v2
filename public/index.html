@@ -143,7 +143,7 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
         <div class="field"><label for="burstKick">BRUTE</label><select id="burstKick"><option value="0">OFF</option><option value="1">BRUTE1</option><option value="2">BRUTE2</option><option value="3">BRUTE3</option><option value="4">BRUTE4</option><option value="5">BRUTE5</option><option value="6">BRUTE6</option><option value="7">BRUTE7</option><option value="8">BRUTE8</option><option value="9">BRUTE9</option><option value="10">BRUTE10</option></select></div>
         <div class="field"><label for="comboKick">COMBO</label><select id="comboKick"><option value="off">OFF</option><option value="combo1">COMBO1 · BRUTE2 + BRUTE3</option><option value="combo2">COMBO2 · BRUTE3 + BRUTE4</option></select></div>
       </div>
-      <button id="kickAll" class="danger kickall-side">KICKALL</button>
+      <div style="display:flex;flex-direction:column;gap:6px"><button id="kickAll" class="danger kickall-side">KICKALL</button><button id="sandboxKick" title="Local simulation only; tidak mengirim ke WebSocket upstream">🧪 SANDBOX TEST</button></div>
     </div>
   </div>
 
@@ -445,6 +445,19 @@ function syncBruteCombo(source){
 document.getElementById('burstKick').addEventListener('change',()=>syncBruteCombo('brute'));
 document.getElementById('comboKick').addEventListener('change',()=>syncBruteCombo('combo'));
 
+async function sandboxKick(){
+  const targets=[...targetList.querySelectorAll('.target-item')].map(e=>e.dataset.username).filter(Boolean).slice(0,10);
+  if(!targets.length)return;
+  const cfg={targets,loop:Math.max(1,Math.min(100,Number(document.getElementById('loopKick').value)||1)),delayTarget:Math.max(0,Number(document.getElementById('delayTarget').value)||0),delayBatch:Math.max(0,Number(document.getElementById('delayBatch').value)||0),sockets:10};
+  try{
+    resetKickLive();
+    const r=await fetch('/api/sandbox-kick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||d.ok===false)throw new Error(d.error||`HTTP ${r.status}`);
+    log(0,`SANDBOX selesai: ${d.totalJobs??0} simulasi | ${d.elapsedMs??0} ms`);
+  }catch(e){log(0,'SANDBOX ERROR: '+e.message)}
+}
+
 async function kickAll(){
   const room=getRoom();
   if(!room)return;
@@ -634,7 +647,7 @@ document.getElementById("loadFile").addEventListener("change",async function(e){
     e.target.value="";
   }
 });
-document.getElementById("loginAll").onclick=loginAll;document.getElementById("logoutAll").onclick=logoutAll;document.getElementById("enterAll").onclick=enterAll;document.getElementById("leaveAll").onclick=leaveAll;document.getElementById("generateTroop").onclick=generateTroop;document.getElementById("setPass").onclick=setPass;document.getElementById("listRoom").onclick=listUser;document.getElementById("saveConfig").onclick=saveConfig;document.getElementById("loadConfig").onclick=loadConfig;document.getElementById("clearTarget").onclick=clearTargets;document.getElementById("kickAll").onclick=kickAll;document.getElementById("suicideToggle").onclick=toggleSuicide;document.getElementById("resetCountdown").onclick=resetCountdownTimer;render();refreshUserList();updateTargetCount();
+document.getElementById("loginAll").onclick=loginAll;document.getElementById("logoutAll").onclick=logoutAll;document.getElementById("enterAll").onclick=enterAll;document.getElementById("leaveAll").onclick=leaveAll;document.getElementById("generateTroop").onclick=generateTroop;document.getElementById("setPass").onclick=setPass;document.getElementById("listRoom").onclick=listUser;document.getElementById("saveConfig").onclick=saveConfig;document.getElementById("loadConfig").onclick=loadConfig;document.getElementById("clearTarget").onclick=clearTargets;document.getElementById("kickAll").onclick=kickAll;document.getElementById("suicideToggle").onclick=toggleSuicide;document.getElementById("resetCountdown").onclick=resetCountdownTimer;document.getElementById("sandboxKick").onclick=sandboxKick;render();refreshUserList();updateTargetCount();
 </script>
 </body>
 </html>
