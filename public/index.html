@@ -294,27 +294,15 @@ function getRoom(){const room=roomEl.value.trim();if(!room){alert("Isi Room");re
 function getRange(){
   const av=String(document.getElementById("start").value||"").trim();
   const bv=String(document.getElementById("end").value||"").trim();
-  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv)){
-    alert("Awal dan Akhir hanya boleh berisi angka.");
-    return null;
-  }
+  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv)){ alert("Awal dan Akhir hanya boleh berisi angka."); return null; }
   const a=Number(av), b=Number(bv);
-  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<0){
-    alert("Awal dan Akhir tidak valid.");
-    return null;
+  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<a){ alert("Rentang Awal/Akhir tidak valid."); return null; }
+  const values=[];
+  for(let i=0;i<N;i++){
+    const v=(i===0)?a:(i===N-1)?b:Math.round(a+(b-a)*i/(N-1));
+    values.push(v);
   }
-
-  // Mode khusus 00-99: menghasilkan 10 username:
-  // 00, 11, 22, 33, 44, 55, 66, 77, 88, 99.
-  if(av==="00" && bv==="99"){
-    return {mode:"double-digit", values:[0,11,22,33,44,55,66,77,88,99], startText:av, endText:bv};
-  }
-
-  if(b-a+1!==N){
-    alert(`SETTROOP harus tepat ${N} ID. Contoh 01-10, 11-20, atau 91-100. Untuk pola 00,11,...,99 gunakan Awal 00 dan Akhir 99.`);
-    return null;
-  }
-  return {mode:"range", a,b,startWidth:av.length,endWidth:bv.length};
+  return {mode:"any-range",values,startWidth:av.length,endWidth:bv.length};
 }
 function refreshUserList(){}
 function updateTargetCount(){targetCount.textContent=targetList.querySelectorAll(".target-item").length}
@@ -381,21 +369,14 @@ function generateTroop(){
     document.getElementById(`pass-${i}`).value="";
   }
 
-  if(range.mode==="double-digit"){
+  if(range.mode==="any-range"){
     range.values.forEach((n,slot)=>{
-      const suffix=String(n).padStart(2,"0");
-      const u=prefix+suffix;
-      document.getElementById(`user-${slot}`).value=u;
-      log(slot,`Username diisi: ${u}`);
-    });
-  }else{
-    const width=Math.max(range.startWidth,range.endWidth,2);
-    for(let slot=0,n=range.a;n<=range.b;slot++,n++){
+      const width=Math.max(range.startWidth,range.endWidth,2);
       const suffix=String(n).padStart(width,"0");
       const u=prefix+suffix;
       document.getElementById(`user-${slot}`).value=u;
-      log(slot,`Username diisi: ${u}`);
-    }
+      log(slot,`Username ${u}`);
+    });
   }
   refreshUserList();
 }
