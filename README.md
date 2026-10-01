@@ -12,20 +12,6 @@ Versi ini:
 - pilihan BRUTE tersedia dari `BRUTE1` sampai `BRUTE10`
 - panel log/API log dan tombol CLEAR LOG dihapus
 
-## Konfigurasi limit Send Kick
-Limit dikendalikan oleh satu parameter environment: `KICK_MAX_PER_SECOND`.
-
-- Default: `100` kick/socket/detik
-- Nilai yang dapat dipakai: `1` sampai `200`
-- Contoh VPS/Linux:
-  ```bash
-  export KICK_MAX_PER_SECOND=150
-  bash start.sh
-  ```
-- Untuk systemd, tambahkan `Environment=KICK_MAX_PER_SECOND=150` pada service Python lalu jalankan `systemctl daemon-reload && systemctl restart sok-python.service`.
-
-Nilai di atas 200 otomatis dibatasi ke 200.
-
 Jalankan:
 ```bash
 chmod +x start.sh stop.sh

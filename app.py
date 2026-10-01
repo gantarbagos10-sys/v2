@@ -513,8 +513,6 @@ app.router.add_get("/health", health)
 app.router.add_get("/ws", proxy)
 app.router.add_post("/api/kick-loop", kick_loop)
 app.router.add_post("/api/sandbox-kick", sandbox_kick)
-app.router.add_post("/api/config/save", save_config_file)
-app.router.add_get("/api/config/load", load_config_file)
 app.router.add_post("/api/suicide", suicide)
 app.router.add_static("/static/", ROOT)
 
