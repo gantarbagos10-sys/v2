@@ -74,9 +74,9 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
   <section id="panelSetting" class="tab-panel active" role="tabpanel">
   <div class="panel">
     <div class="setting-row troop-row">
-      <div class="field"><label for="nametroop">NameTroop</label><input id="nametroop" placeholder="contoh: troop" autocomplete="off"></div>
-      <div class="field"><label for="start">Awal</label><input id="start" type="number" step="1" value="1"></div>
-      <div class="field"><label for="end">Akhir</label><input id="end" type="number" step="1" value="10"></div>
+      <div class="field"><label for="nametroop">NameTroop</label><input id="nametroop" placeholder="contoh: tai" autocomplete="off"></div>
+      <div class="field"><label for="start">Awal</label><input id="start" type="text" inputmode="numeric" pattern="\d*" value="00" maxlength="3"></div>
+      <div class="field"><label for="end">Akhir</label><input id="end" type="text" inputmode="numeric" pattern="\d*" value="99" maxlength="3"></div>
       <div class="field"><label>&nbsp;</label><button id="generateTroop" class="primary">SETTROOP</button></div>
     </div>
     <div class="setting-row pass-row">
@@ -87,7 +87,7 @@ html{background:#020617}body{font-family:Inter,ui-sans-serif,system-ui,-apple-sy
 
   <div class="panel">
     <div class="setting-row save-row">
-      <div class="field"><label for="saveLoad">SaveLoad</label><input id="saveLoad" placeholder="Nama simpanan, contoh: akun1" autocomplete="off"><input id="loadFile" type="file" accept=".json,application/json" style="display:none"></div>
+      <div class="field"><label for="saveLoad">SaveLoad</label><input id="saveLoad" value="multi1" placeholder="Nama simpanan, contoh: multi1" autocomplete="off"><input id="loadFile" type="file" accept=".json,application/json" style="display:none"></div>
       <div class="field"><label>&nbsp;</label><button id="saveConfig" class="primary">SAVE</button></div>
       <div class="field"><label>&nbsp;</label><button id="loadConfig">LOAD</button></div>
     </div>
@@ -292,17 +292,29 @@ function insertRow(i){rows.insertAdjacentHTML("beforeend",`<tr><td>${i+1}</td><t
 function cred(i){return{username:document.getElementById(`user-${i}`).value.trim(),password:document.getElementById(`pass-${i}`).value}}
 function getRoom(){const room=roomEl.value.trim();if(!room){alert("Isi Room");return null}return room}
 function getRange(){
-  const a=Number(document.getElementById("start").value);
-  const b=Number(document.getElementById("end").value);
-  if(!Number.isInteger(a)||!Number.isInteger(b)){
-    alert("Awal dan Akhir harus berupa angka bulat.");
+  const av=String(document.getElementById("start").value||"").trim();
+  const bv=String(document.getElementById("end").value||"").trim();
+  if(!/^\d+$/.test(av)||!/^\d+$/.test(bv)){
+    alert("Awal dan Akhir hanya boleh berisi angka.");
     return null;
   }
+  const a=Number(av), b=Number(bv);
+  if(!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||a<0||b<0){
+    alert("Awal dan Akhir tidak valid.");
+    return null;
+  }
+
+  // Mode khusus 00-99: menghasilkan 10 username:
+  // 00, 11, 22, 33, 44, 55, 66, 77, 88, 99.
+  if(av==="00" && bv==="99"){
+    return {mode:"double-digit", values:[0,11,22,33,44,55,66,77,88,99], startText:av, endText:bv};
+  }
+
   if(b-a+1!==N){
-    alert(`Rentang harus tepat ${N} ID. Contoh: Awal 5, Akhir 14.`);
+    alert(`SETTROOP harus tepat ${N} ID. Contoh 01-10, 11-20, atau 91-100. Untuk pola 00,11,...,99 gunakan Awal 00 dan Akhir 99.`);
     return null;
   }
-  return [a,b];
+  return {mode:"range", a,b,startWidth:av.length,endWidth:bv.length};
 }
 function refreshUserList(){}
 function updateTargetCount(){targetCount.textContent=targetList.querySelectorAll(".target-item").length}
@@ -364,15 +376,26 @@ function generateTroop(){
   if(!prefix){alert("Isi NameTroop");return}
   const range=getRange();
   if(!range)return;
-  const [a,b]=range;
   for(let i=0;i<N;i++){
     document.getElementById(`user-${i}`).value="";
     document.getElementById(`pass-${i}`).value="";
   }
-  for(let slot=0,n=a;n<=b;slot++,n++){
-    const u=prefix+n;
-    document.getElementById(`user-${slot}`).value=u;
-    log(slot,`Username diisi: ${u}`);
+
+  if(range.mode==="double-digit"){
+    range.values.forEach((n,slot)=>{
+      const suffix=String(n).padStart(2,"0");
+      const u=prefix+suffix;
+      document.getElementById(`user-${slot}`).value=u;
+      log(slot,`Username diisi: ${u}`);
+    });
+  }else{
+    const width=Math.max(range.startWidth,range.endWidth,2);
+    for(let slot=0,n=range.a;n<=range.b;slot++,n++){
+      const suffix=String(n).padStart(width,"0");
+      const u=prefix+suffix;
+      document.getElementById(`user-${slot}`).value=u;
+      log(slot,`Username diisi: ${u}`);
+    }
   }
   refreshUserList();
 }
@@ -585,8 +608,9 @@ function saveConfig(){
 }
 function applyConfig(cfg){
   const accounts=Array.isArray(cfg.accounts)?cfg.accounts:[];
-  const start=Number(cfg.start), end=Number(cfg.end);
-  if(!Number.isInteger(start)||!Number.isInteger(end)||end-start+1!==N)
+  const start=String(cfg.start??"01"), end=String(cfg.end??"10");
+  const a=Number(start), b=Number(end);
+  if(!/^\d+$/.test(start)||!/^\d+$/.test(end)||!Number.isSafeInteger(a)||!Number.isSafeInteger(b)||b-a+1!==N)
     throw new Error(`File harus berisi rentang tepat ${N} ID.`);
   document.getElementById("nametroop").value=cfg.nameTroop||"";
   document.getElementById("start").value=start;
