@@ -43,19 +43,3 @@ Buka:
   `tai00`, `tai11`, `tai22`, `tai33`, `tai44`, `tai55`, `tai66`, `tai77`, `tai88`, `tai99`.
 - Rentang normal tetap menghasilkan tepat 10 akun, misalnya `01-10`, `11-20`, `91-100`.
 - SaveLoad default `multi1`.
-
-## Target replacement update
-- KICKALL now receives `replacementTargets` from the current USER participant list.
-- A WS does not switch target merely because `room.kick` was sent.
-- Each WS waits for the upstream confirmed-kicked event for its current target.
-- After confirmation, that WS immediately claims a different USER target directly; no queue is used.
-- Confirmed kicked targets are blocked globally for the active room job, so later dispatches will not intentionally send them again.
-- The browser removes the confirmed target from TARGET and displays the replacement when the backend assigns it.
-
-
-### KICKALL target replacement
-- TARGET is the only replacement pool. USER/participantUsers are never used.
-- One active TARGET is assigned to each active WS.
-- A WS waits for confirmed kick before taking its next TARGET.
-- Confirmed kicked usernames are globally blocked for the active job.
-- No queue is used.
