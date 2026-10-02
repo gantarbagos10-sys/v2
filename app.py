@@ -67,12 +67,12 @@ async def mark_confirmed_kick(payload):
 
     # Some upstream events may omit room. Only use the room when there is
     # exactly one active kick job; otherwise do not guess the room.
-    jobs = ACTIVE_KICK_JOBS.get(room_key, set()) if room_key else set()
+    jobs = ACTIVE_KICK_JOBS.get(room_key, []) if room_key else []
     if not jobs and not room_key:
         active_rooms = [k for k, v in ACTIVE_KICK_JOBS.items() if v]
         if len(active_rooms) == 1:
             room_key = active_rooms[0]
-            jobs = ACTIVE_KICK_JOBS.get(room_key, set())
+            jobs = ACTIVE_KICK_JOBS.get(room_key, [])
 
     newly_marked = False
     for state in list(jobs):
@@ -111,7 +111,7 @@ async def _replace_kicked_target(room, kicked_target):
     """
     room_key = _norm_room_key(room)
     kicked_key = str(kicked_target or "").strip().casefold()
-    jobs = ACTIVE_KICK_JOBS.get(room_key, set())
+    jobs = ACTIVE_KICK_JOBS.get(room_key, [])
     for state in list(jobs):
         if state.get("lock") is None:
             state["lock"] = asyncio.Lock()
@@ -413,21 +413,46 @@ async def kick_loop(request):
         "confirm_events": {},
         "lock": asyncio.Lock(),
     }
-    ACTIVE_KICK_JOBS.setdefault(room_key, set()).add(replacement_state)
+    ACTIVE_KICK_JOBS.setdefault(room_key, []).append(replacement_state)
 
-    async def claim_replacement(state):
-        """Claim the next live target directly from the TARGET list; no queue and never USER."""
+    async def claim_replacement(state, avoid_key=None):
+        """Get a replacement directly from TARGET.
+
+        Initial assignment prefers an unused target. After a confirmed kick,
+        replacement may reuse another still-live TARGET already assigned to a
+        different WS; with only 10 TARGETs and 10 WS this is the only way to
+        keep a worker active after one target leaves. A target confirmed kicked
+        is never returned. No USER list and no queue are involved.
+        """
         async with state["lock"]:
-            while state["cursor"] < len(state["targets"]):
-                candidate = str(state["targets"][state["cursor"]]).strip()
-                state["cursor"] += 1
+            n = len(state["targets"])
+            if not n:
+                return None
+            # First pass: prefer targets never assigned yet.
+            for _ in range(n):
+                candidate = str(state["targets"][state["cursor"] % n]).strip()
+                state["cursor"] = (state["cursor"] + 1) % n
                 if not candidate:
                     continue
                 ckey = candidate.casefold()
-                if ckey in state["kicked"] or ckey in state["claimed"]:
+                if ckey in state["kicked"] or ckey == (avoid_key or ""):
                     continue
-                state["claimed"].add(ckey)
-                state["target_for_key"][ckey] = candidate
+                if ckey not in state["claimed"]:
+                    state["claimed"].add(ckey)
+                    state["target_for_key"][ckey] = candidate
+                    state["confirm_events"].setdefault(ckey, asyncio.Event())
+                    return candidate
+            # If all live TARGETs are already assigned, reuse a live target.
+            # This is deliberate: replacement is from TARGET, not USER, and
+            # avoids ever sending a target that has already been kicked.
+            for _ in range(n):
+                candidate = str(state["targets"][state["cursor"] % n]).strip()
+                state["cursor"] = (state["cursor"] + 1) % n
+                if not candidate:
+                    continue
+                ckey = candidate.casefold()
+                if ckey in state["kicked"] or ckey == (avoid_key or ""):
+                    continue
                 state["confirm_events"].setdefault(ckey, asyncio.Event())
                 return candidate
         return None
@@ -464,7 +489,7 @@ async def kick_loop(request):
                     already_kicked = False
                     state["confirm_events"].setdefault(target_key, asyncio.Event())
             if already_kicked:
-                current_target = await claim_replacement(state)
+                current_target = await claim_replacement(state, target_key)
                 if current_target:
                     await publish_kick_progress({
                         "jobId": job_id, "phase": "replacement",
@@ -511,7 +536,7 @@ async def kick_loop(request):
                 return
 
             previous_target = current_target
-            current_target = await claim_replacement(state)
+            current_target = await claim_replacement(state, target_key)
             if current_target:
                 await publish_kick_progress({
                     "jobId": job_id, "phase": "replacement",
@@ -546,8 +571,10 @@ async def kick_loop(request):
         if not remaining:
             break
 
-    ACTIVE_KICK_JOBS.get(room_key, set()).discard(replacement_state)
-    if not ACTIVE_KICK_JOBS.get(room_key):
+    active_jobs = ACTIVE_KICK_JOBS.get(room_key, [])
+    if replacement_state in active_jobs:
+        active_jobs.remove(replacement_state)
+    if not active_jobs:
         ACTIVE_KICK_JOBS.pop(room_key, None)
 
     reports = socket_reports()
