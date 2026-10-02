@@ -96,33 +96,6 @@ DOWNLOAD_DIRS = [
 ]
 
 
-async def _replace_kicked_target(room, kicked_target):
-    """Return the next live target for active workers in this room.
-
-    This is direct target replacement, not a queued dispatch. Workers ask for
-    a replacement only after the current target is confirmed kicked.
-    """
-    room_key = _norm_room_key(room)
-    kicked_key = str(kicked_target or "").strip().casefold()
-    jobs = ACTIVE_KICK_JOBS.get(room_key, [])
-    for state in list(jobs):
-        if state.get("lock") is None:
-            state["lock"] = asyncio.Lock()
-        async with state["lock"]:
-            state["kicked"].add(kicked_key)
-            while state["cursor"] < len(state["targets"]):
-                candidate = str(state["targets"][state["cursor"]]).strip()
-                state["cursor"] += 1
-                if not candidate:
-                    continue
-                ckey = candidate.casefold()
-                if ckey in state["kicked"] or ckey in state["claimed"]:
-                    continue
-                state["claimed"].add(ckey)
-                state["target_for_key"][ckey] = candidate
-                return candidate
-    return None
-
 
 def safe_config_filename(name):
     name = str(name or "").strip()
@@ -417,26 +390,11 @@ async def kick_loop(request):
         while current_target:
             target_key = str(current_target).strip().casefold()
 
-            # If another socket already completed this target, immediately
-            # claim a replacement instead of putting work into a queue.
+            # Never send another kick to a target already confirmed as kicked.
             state = replacement_state
             async with state["lock"]:
                 if target_key in state["kicked"]:
-                    current_target = None
-                    while state["cursor"] < len(state["targets"]):
-                        candidate = str(state["targets"][state["cursor"]]).strip()
-                        state["cursor"] += 1
-                        if not candidate:
-                            continue
-                        ckey = candidate.casefold()
-                        if ckey in state["kicked"] or ckey in state["claimed"]:
-                            continue
-                        state["claimed"].add(ckey)
-                        current_target = candidate
-                        break
-                    if not current_target:
-                        return
-                    target_key = current_target.casefold()
+                    return
 
             try:
                 result = await send_kick(ws, room, current_target)
@@ -465,26 +423,12 @@ async def kick_loop(request):
                 "socketStats": {"websocket": ws_name, **current_socket},
             })
 
-            # Direct replacement is driven by the confirmed kick event.
-            # Do not manufacture a replacement merely because the request
-            # returned successfully.
-            if target_key in state["kicked"]:
-                async with state["lock"]:
-                    replacement = None
-                    while state["cursor"] < len(state["targets"]):
-                        candidate = str(state["targets"][state["cursor"]]).strip()
-                        state["cursor"] += 1
-                        if not candidate:
-                            continue
-                        ckey = candidate.casefold()
-                        if ckey in state["kicked"] or ckey in state["claimed"]:
-                            continue
-                        state["claimed"].add(ckey)
-                        replacement = candidate
-                        break
-                current_target = replacement
-            else:
-                return
+            # A confirmed kick removes this target from further processing.
+            # Do not automatically select or dispatch a replacement target.
+            async with state["lock"]:
+                if target_key in state["kicked"]:
+                    return
+            return
 
     for loop_no in range(loops):
         if combo in combo_bursts:
