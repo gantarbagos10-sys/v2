@@ -259,13 +259,6 @@ async def sandbox_kick(request):
     except Exception:
         return web.json_response({"ok": False, "error": "JSON tidak valid"}, status=400)
     targets = [str(x).strip() for x in data.get("targets", []) if str(x).strip()][:10]
-    replacement_targets = [str(x).strip() for x in data.get("replacementTargets", []) if str(x).strip()]
-    # Replacement candidates come from USER, never from the kicked TARGET list.
-    # Keep order, remove duplicates, and exclude current targets.
-    target_keys = {x.casefold() for x in targets}
-    replacement_targets = list(dict.fromkeys(
-        x for x in replacement_targets if x and x.casefold() not in target_keys
-    ))
     try:
         loops = max(1, min(100, int(data.get("loop", 1))))
         sockets_count = max(1, min(10, int(data.get("sockets", 10))))
@@ -382,16 +375,13 @@ async def kick_loop(request):
 
     job_id = uuid.uuid4().hex[:12]
     combo_bursts = {"combo1": (2, 3), "combo2": (3, 4)}
-    if combo in combo_bursts:
-        b1, b2 = combo_bursts[combo]
-        combo_waves = max((len(targets) + b1 - 1) // b1, (len(targets) + b2 - 1) // b2)
-        total_per_socket = sum(min(b1, max(0, len(targets) - i*b1)) for i in range((len(targets)+b1-1)//b1)) + sum(min(b2, max(0, len(targets) - i*b2)) for i in range((len(targets)+b2-1)//b2))
-        total_jobs = loops * total_per_socket * len(sockets)
-        per_socket_total = loops * total_per_socket
-    else:
-        combo_waves = 0
-        total_jobs = loops * len(targets) * len(sockets)
-        per_socket_total = loops * len(targets)
+    # KICKALL now assigns one TARGET to each active WS. When a target is
+    # confirmed kicked, that WS directly claims another TARGET from the same
+    # list. Therefore the real maximum dispatch count is the number of TARGETs,
+    # not TARGETs x WS.
+    combo_waves = 0
+    total_jobs = len(targets)
+    per_socket_total = max(1, (len(targets) + len(sockets) - 1) // len(sockets))
     socket_stats = {
         ws_name: {"totalJobs": per_socket_total, "dispatchedJobs": 0, "failedJobs": 0, "lastTarget": "", "lastLoop": 0}
         for ws_name, _ in socket_entries
@@ -405,7 +395,7 @@ async def kick_loop(request):
 
     progress = {"jobId": job_id, "phase": "started", "totalJobs": total_jobs,
                 "dispatchedJobs": 0, "failedJobs": 0, "websockets": len(sockets),
-                "targets": len(targets), "replacementTargets": len(replacement_targets), "loop": loops, "burst": burst, "combo": combo,
+                "targets": len(targets), "replacementTargets": len(targets), "loop": loops, "burst": burst, "combo": combo,
                 "kickLimit": KICK_LIMIT_LABEL, "socketReports": socket_reports()}
     await publish_kick_progress(progress)
 
@@ -416,7 +406,6 @@ async def kick_loop(request):
     room_key = _norm_room_key(room)
     replacement_state = {
         "targets": list(targets),
-        "replacement_targets": replacement_targets,
         "cursor": 0,
         "kicked": set(),
         "claimed": set(),
@@ -427,10 +416,10 @@ async def kick_loop(request):
     ACTIVE_KICK_JOBS.setdefault(room_key, set()).add(replacement_state)
 
     async def claim_replacement(state):
-        """Claim one replacement directly from USER; no queue is used."""
+        """Claim the next live target directly from the TARGET list; no queue and never USER."""
         async with state["lock"]:
-            while state["cursor"] < len(state["replacement_targets"]):
-                candidate = str(state["replacement_targets"][state["cursor"]]).strip()
+            while state["cursor"] < len(state["targets"]):
+                candidate = str(state["targets"][state["cursor"]]).strip()
                 state["cursor"] += 1
                 if not candidate:
                     continue
@@ -516,7 +505,7 @@ async def kick_loop(request):
 
             # IMPORTANT: do not replace merely because room.kick was sent.
             # Wait for the actual kicked event. Once confirmed, this WS gets
-            # a different USER target directly, without a queue.
+            # a different target from the same TARGET list, without a queue.
             confirmed = await wait_for_confirmation(state, target_key)
             if not confirmed:
                 return
@@ -532,35 +521,30 @@ async def kick_loop(request):
                 })
 
 
+    # One active target per WS. When that target is confirmed kicked, that same
+    # WS immediately claims the next live target from TARGET. This prevents a WS
+    # from continuing to send kicks at a username already confirmed out of room.
+    # `burst`/`combo` are intentionally not used to assign multiple targets to
+    # the same WS here; replacement correctness takes priority.
     for loop_no in range(loops):
-        if combo in combo_bursts:
-            b1, b2 = combo_bursts[combo]
-            batches1 = [targets[i:i+b1] for i in range(0, len(targets), b1)]
-            batches2 = [targets[i:i+b2] for i in range(0, len(targets), b2)]
-            # Dua pola BRUTE berjalan bersamaan pada setiap wave, lalu wave berikutnya
-            # bergantian. COMBO1 = BRUTE2 + BRUTE3, COMBO2 = BRUTE3 + BRUTE4.
-            for wave in range(max(len(batches1), len(batches2))):
-                jobs = []
-                if wave < len(batches1):
-                    jobs.extend(run_one(ws, ws_name, target, loop_no)
-                                for ws_name, ws in socket_entries for target in batches1[wave])
-                if wave < len(batches2):
-                    jobs.extend(run_one(ws, ws_name, target, loop_no)
-                                for ws_name, ws in socket_entries for target in batches2[wave])
-                if jobs:
-                    await asyncio.gather(*jobs, return_exceptions=True)
-                if wave + 1 < max(len(batches1), len(batches2)) and delay_target:
-                    await asyncio.sleep(delay_target)
-        else:
-            for start in range(0, len(targets), burst):
-                batch = targets[start:start + burst]
-                jobs = [run_one(ws, ws_name, target, loop_no)
-                        for ws_name, ws in socket_entries for target in batch]
-                await asyncio.gather(*jobs, return_exceptions=True)
-                if start + burst < len(targets) and delay_target:
-                    await asyncio.sleep(delay_target)
+        jobs = []
+        for ws_name, ws in socket_entries:
+            target = await claim_replacement(replacement_state)
+            if target:
+                jobs.append(run_one(ws, ws_name, target, loop_no))
+        if jobs:
+            await asyncio.gather(*jobs, return_exceptions=True)
         if loop_no + 1 < loops and delay_batch:
             await asyncio.sleep(delay_batch)
+        # Once every TARGET entry has been claimed/kicked, further loops cannot
+        # produce a valid replacement and should stop instead of retrying dead targets.
+        async with replacement_state["lock"]:
+            remaining = any(
+                str(t).strip() and str(t).strip().casefold() not in replacement_state["kicked"]
+                for t in replacement_state["targets"]
+            )
+        if not remaining:
+            break
 
     ACTIVE_KICK_JOBS.get(room_key, set()).discard(replacement_state)
     if not ACTIVE_KICK_JOBS.get(room_key):
