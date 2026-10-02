@@ -56,22 +56,37 @@ def _is_confirmed_kicked_event(payload):
     ))
 
 async def mark_confirmed_kick(payload):
+    """Record a real kick confirmation and wake every WS worker assigned to it."""
     if not _is_confirmed_kicked_event(payload):
         return None
     typ, room, target, status = _kick_event_info(payload)
     room_key = _norm_room_key(room)
-    if not room_key or not target:
+    target_key = target.casefold() if target else ""
+    if not target_key:
         return None
-    target_key = target.casefold()
-    jobs = ACTIVE_KICK_JOBS.get(room_key, set())
+
+    # Some upstream events may omit room. Only use the room when there is
+    # exactly one active kick job; otherwise do not guess the room.
+    jobs = ACTIVE_KICK_JOBS.get(room_key, set()) if room_key else set()
+    if not jobs and not room_key:
+        active_rooms = [k for k, v in ACTIVE_KICK_JOBS.items() if v]
+        if len(active_rooms) == 1:
+            room_key = active_rooms[0]
+            jobs = ACTIVE_KICK_JOBS.get(room_key, set())
+
     newly_marked = False
-    for kicked_targets in list(jobs):
-        if target_key not in kicked_targets:
-            kicked_targets.add(target_key)
-            newly_marked = True
+    for state in list(jobs):
+        async with state["lock"]:
+            if target_key not in state["kicked"]:
+                state["kicked"].add(target_key)
+                newly_marked = True
+            event = state["confirm_events"].get(target_key)
+            if event:
+                event.set()
+
     if newly_marked:
         print(f"[KICK EVENT] confirmed kicked room={room!r} target={target!r} type={typ}", flush=True)
-    return {"room": room, "target": target, "type": typ}
+    return {"room": room or room_key, "target": target, "type": typ}
 
 
 # Server-authoritative kick limit: 200 kicks/second per upstream WebSocket.
@@ -244,6 +259,13 @@ async def sandbox_kick(request):
     except Exception:
         return web.json_response({"ok": False, "error": "JSON tidak valid"}, status=400)
     targets = [str(x).strip() for x in data.get("targets", []) if str(x).strip()][:10]
+    replacement_targets = [str(x).strip() for x in data.get("replacementTargets", []) if str(x).strip()]
+    # Replacement candidates come from USER, never from the kicked TARGET list.
+    # Keep order, remove duplicates, and exclude current targets.
+    target_keys = {x.casefold() for x in targets}
+    replacement_targets = list(dict.fromkeys(
+        x for x in replacement_targets if x and x.casefold() not in target_keys
+    ))
     try:
         loops = max(1, min(100, int(data.get("loop", 1))))
         sockets_count = max(1, min(10, int(data.get("sockets", 10))))
@@ -383,7 +405,7 @@ async def kick_loop(request):
 
     progress = {"jobId": job_id, "phase": "started", "totalJobs": total_jobs,
                 "dispatchedJobs": 0, "failedJobs": 0, "websockets": len(sockets),
-                "targets": len(targets), "loop": loops, "burst": burst, "combo": combo,
+                "targets": len(targets), "replacementTargets": len(replacement_targets), "loop": loops, "burst": burst, "combo": combo,
                 "kickLimit": KICK_LIMIT_LABEL, "socketReports": socket_reports()}
     await publish_kick_progress(progress)
 
@@ -394,41 +416,74 @@ async def kick_loop(request):
     room_key = _norm_room_key(room)
     replacement_state = {
         "targets": list(targets),
+        "replacement_targets": replacement_targets,
         "cursor": 0,
         "kicked": set(),
         "claimed": set(),
         "target_for_key": {},
+        "confirm_events": {},
         "lock": asyncio.Lock(),
     }
     ACTIVE_KICK_JOBS.setdefault(room_key, set()).add(replacement_state)
 
+    async def claim_replacement(state):
+        """Claim one replacement directly from USER; no queue is used."""
+        async with state["lock"]:
+            while state["cursor"] < len(state["replacement_targets"]):
+                candidate = str(state["replacement_targets"][state["cursor"]]).strip()
+                state["cursor"] += 1
+                if not candidate:
+                    continue
+                ckey = candidate.casefold()
+                if ckey in state["kicked"] or ckey in state["claimed"]:
+                    continue
+                state["claimed"].add(ckey)
+                state["target_for_key"][ckey] = candidate
+                state["confirm_events"].setdefault(ckey, asyncio.Event())
+                return candidate
+        return None
+
+    async def wait_for_confirmation(state, target_key):
+        """Wait for actual room confirmation, so replacement happens only after kick."""
+        async with state["lock"]:
+            if target_key in state["kicked"]:
+                return True
+            event = state["confirm_events"].setdefault(target_key, asyncio.Event())
+        # A missing confirmation must not leave KICKALL hanging forever.
+        try:
+            await asyncio.wait_for(event.wait(), timeout=10.0)
+            return True
+        except asyncio.TimeoutError:
+            return False
+
     async def run_one(ws, ws_name, target, loop_no):
         nonlocal total, failed
         current_target = target
+        state = replacement_state
 
         while current_target:
             target_key = str(current_target).strip().casefold()
+            if not target_key:
+                return
 
-            # If another socket already completed this target, immediately
-            # claim a replacement instead of putting work into a queue.
-            state = replacement_state
+            # Register the confirmation waiter BEFORE sending. This prevents
+            # a fast upstream confirmation from being missed.
             async with state["lock"]:
                 if target_key in state["kicked"]:
-                    current_target = None
-                    while state["cursor"] < len(state["targets"]):
-                        candidate = str(state["targets"][state["cursor"]]).strip()
-                        state["cursor"] += 1
-                        if not candidate:
-                            continue
-                        ckey = candidate.casefold()
-                        if ckey in state["kicked"] or ckey in state["claimed"]:
-                            continue
-                        state["claimed"].add(ckey)
-                        current_target = candidate
-                        break
-                    if not current_target:
-                        return
-                    target_key = current_target.casefold()
+                    already_kicked = True
+                else:
+                    already_kicked = False
+                    state["confirm_events"].setdefault(target_key, asyncio.Event())
+            if already_kicked:
+                current_target = await claim_replacement(state)
+                if current_target:
+                    await publish_kick_progress({
+                        "jobId": job_id, "phase": "replacement",
+                        "room": room, "replacedTarget": target_key,
+                        "target": current_target, "websocket": ws_name,
+                        "reason": "already_confirmed"
+                    })
+                continue
 
             try:
                 result = await send_kick(ws, room, current_target)
@@ -450,33 +505,32 @@ async def kick_loop(request):
             await publish_kick_progress({
                 "jobId": job_id, "phase": "progress",
                 "totalJobs": total_jobs, "dispatchedJobs": current_total,
-                "failedJobs": current_failed,
-                "websockets": len(sockets),
+                "failedJobs": current_failed, "websockets": len(sockets),
                 "loop": loop_no + 1, "loops": loops,
                 "target": current_target, "websocket": ws_name,
                 "socketStats": {"websocket": ws_name, **current_socket},
             })
 
-            # Direct replacement is driven by the confirmed kick event.
-            # Do not manufacture a replacement merely because the request
-            # returned successfully.
-            if target_key in state["kicked"]:
-                async with state["lock"]:
-                    replacement = None
-                    while state["cursor"] < len(state["targets"]):
-                        candidate = str(state["targets"][state["cursor"]]).strip()
-                        state["cursor"] += 1
-                        if not candidate:
-                            continue
-                        ckey = candidate.casefold()
-                        if ckey in state["kicked"] or ckey in state["claimed"]:
-                            continue
-                        state["claimed"].add(ckey)
-                        replacement = candidate
-                        break
-                current_target = replacement
-            else:
+            if result is not True:
                 return
+
+            # IMPORTANT: do not replace merely because room.kick was sent.
+            # Wait for the actual kicked event. Once confirmed, this WS gets
+            # a different USER target directly, without a queue.
+            confirmed = await wait_for_confirmation(state, target_key)
+            if not confirmed:
+                return
+
+            previous_target = current_target
+            current_target = await claim_replacement(state)
+            if current_target:
+                await publish_kick_progress({
+                    "jobId": job_id, "phase": "replacement",
+                    "room": room, "replacedTarget": previous_target,
+                    "target": current_target, "websocket": ws_name,
+                    "reason": "kick_confirmed"
+                })
+
 
     for loop_no in range(loops):
         if combo in combo_bursts:
