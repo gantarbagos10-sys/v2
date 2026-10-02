@@ -173,7 +173,7 @@ const N=10;
 const clients=Array.from({length:N},()=>({ws:null,loggedIn:false,inRoom:false,pingTimer:null,intentionalClose:false,balance:null}));
 const rows=document.getElementById("rows"),roomEl=document.getElementById("room"),userList=document.getElementById("userList"),targetList=document.getElementById("targetList"),userCount=document.getElementById("userCount"),targetCount=document.getElementById("targetCount"),saveLoadEl=document.getElementById("saveLoad");
 const kickProgressStatus=document.getElementById("kickProgressStatus"),kickProgressDetail=document.getElementById("kickProgressDetail"),kickDispatched=document.getElementById("kickDispatched"),kickFailed=document.getElementById("kickFailed"),kickWs=document.getElementById("kickWs"),kickRate=document.getElementById("kickRate"),kickSocketReports=document.getElementById("kickSocketReports");
-let kickProgressJobs=new Map();let kickProgressSeen=new Set();let kickProgressStartedAt=0;
+let kickProgressJobs=new Map();let kickProgressSeen=new Set();let kickProgressStartedAt=0;let confirmedKickedTargets=new Set();
 const SAVE_PREFIX="migsock_config_";
 let participantUsers=[];
 const COUNTDOWN_DEFAULT=60000;
@@ -312,15 +312,16 @@ function updateTargetCount(){targetCount.textContent=targetList.querySelectorAll
 function targetHas(username){return [...targetList.querySelectorAll(".target-item")].some(o=>o.dataset.username===username)}
 function removeConfirmedKickedTarget(username){
   username=String(username||"").trim();
+  if(username)confirmedKickedTargets.add(username.toLowerCase());
   if(!username)return;
   const match=[...targetList.querySelectorAll(".target-item")].find(o=>String(o.dataset.username||"").toLowerCase()===username.toLowerCase());
   if(!match)return;
   match.remove();
   updateTargetCount();
   if(Array.isArray(participantUsers) && participantUsers.length) showUsers(participantUsers,false);
-  log(0,`TARGET dihapus otomatis: ${username} sudah kicked — slot WS akan mengambil target pengganti`);
+  log(0,`TARGET dihapus otomatis: ${username} sudah kicked — target tidak akan diproses lagi`);
 }
-function addTarget(username){if(!username||targetHas(username)||targetList.querySelectorAll(".target-item").length>=10)return;const e=document.createElement("div");e.className="target-item";e.dataset.username=username;e.textContent=username;targetList.appendChild(e);updateTargetCount()}
+function addTarget(username){if(!username||confirmedKickedTargets.has(String(username).trim().toLowerCase())||targetHas(username)||targetList.querySelectorAll(".target-item").length>=10)return;const e=document.createElement("div");e.className="target-item";e.dataset.username=username;e.textContent=username;targetList.appendChild(e);updateTargetCount()}
 function moveUserToTarget(username,row){addTarget(username);if(row&&row.parentNode)row.parentNode.removeChild(row);userCount.textContent=userList.querySelectorAll(".user-item").length}
 function autoAddMatchingTargets(users){
   const blockedWsUsers=new Set();
@@ -328,7 +329,7 @@ function autoAddMatchingTargets(users){
     const u=cred(i).username;
     if(u)blockedWsUsers.add(u.toLowerCase());
   }
-  const list=[...new Set((users||[]).filter(Boolean).map(String))].filter(u=>!blockedWsUsers.has(u.toLowerCase()));
+  const list=[...new Set((users||[]).filter(Boolean).map(String))].filter(u=>!blockedWsUsers.has(u.toLowerCase())&&!confirmedKickedTargets.has(u.toLowerCase()));
   const groups=new Map();
   const addGroup=(key,item,type)=>{if(!groups.has(key))groups.set(key,{type,items:[]});groups.get(key).items.push(item)};
   list.forEach(u=>{
@@ -366,7 +367,7 @@ function autoAddMatchingTargets(users){
   return selected.map(x=>x.u);
 }
 function clearTargets(){
-  const restored=[...new Set(participantUsers)];
+  const restored=[...new Set(participantUsers)].filter(u=>!confirmedKickedTargets.has(String(u).toLowerCase()));
   targetList.innerHTML="";
   updateTargetCount();
   if(restored.length) showUsers(restored,false); else { userList.innerHTML=""; userCount.textContent="0"; }
