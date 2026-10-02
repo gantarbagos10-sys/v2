@@ -478,10 +478,8 @@ async function kickAll(){
   syncBruteCombo(comboEl.value!=='off'?'combo':'brute');
   const combo=comboEl.value;
   const brute=Math.min(10,Math.max(1,Number(bruteEl.value)||1));
-  const targetKeys=new Set(targets.map(x=>String(x).toLowerCase()));
-  const wsKeys=new Set(Array.from({length:N},(_,i)=>cred(i).username).filter(Boolean).map(x=>x.toLowerCase()));
-  const replacementTargets=[...new Set(participantUsers.map(String).filter(Boolean))].filter(u=>{const k=u.toLowerCase();return !targetKeys.has(k)&&!wsKeys.has(k)});
-  const cfg={room,targets,replacementTargets,loop:Math.max(1,Number(document.getElementById('loopKick').value)||1),delayTarget:Math.max(0,Number(document.getElementById('delayTarget').value)||0),delayBatch:Math.max(0,Number(document.getElementById('delayBatch').value)||0),burst:brute,combo};
+  // Replacement source is TARGET itself. USER is never used as a replacement pool.
+  const cfg={room,targets,loop:Math.max(1,Number(document.getElementById('loopKick').value)||1),delayTarget:Math.max(0,Number(document.getElementById('delayTarget').value)||0),delayBatch:Math.max(0,Number(document.getElementById('delayBatch').value)||0),burst:brute,combo};
   if(combo==='combo1') log(0,`KICKALL COMBO1: BRUTE2 + BRUTE3 berjalan bersamaan & berselingan | ${targets.length} target | loop=${cfg.loop}`);
   else if(combo==='combo2') log(0,`KICKALL COMBO2: BRUTE3 + BRUTE4 berjalan bersamaan & berselingan | ${targets.length} target | loop=${cfg.loop}`);
   else log(0,`KICKALL mulai: ${targets.length} target | loop=${cfg.loop} | burst=${cfg.burst} | delayTarget=${cfg.delayTarget} | delayBatch=${cfg.delayBatch}`);
