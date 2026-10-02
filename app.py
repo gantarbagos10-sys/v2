@@ -73,10 +73,22 @@ async def mark_confirmed_kick(payload):
             lock = asyncio.Lock()
             state["lock"] = lock
         async with lock:
+            # Only targets belonging to this job's immutable original pool
+            # can affect its replacement chain.
+            events = state.get("events", {})
+            if target_key not in events:
+                continue
             kicked_targets = state.setdefault("kicked", set())
             if target_key not in kicked_targets:
                 kicked_targets.add(target_key)
+                events[target_key].set()
                 newly_marked = True
+                callback = state.get("on_kicked")
+                if callback is not None:
+                    task = asyncio.create_task(callback(target))
+                    tasks = state.setdefault("replacement_tasks", set())
+                    tasks.add(task)
+                    task.add_done_callback(tasks.discard)
     if newly_marked:
         print(f"[KICK EVENT] confirmed kicked room={room!r} target={target!r} type={typ}", flush=True)
     return {"room": room, "target": target, "type": typ}
@@ -224,7 +236,18 @@ async def sandbox_kick(request):
         data = await request.json()
     except Exception:
         return web.json_response({"ok": False, "error": "JSON tidak valid"}, status=400)
-    targets = [str(x).strip() for x in data.get("targets", []) if str(x).strip()][:10]
+    targets = []
+    seen_targets = set()
+    for raw in data.get("targets", []):
+        target = str(raw).strip()
+        key = target.casefold()
+        if target and key not in seen_targets:
+            seen_targets.add(key)
+            targets.append(target)
+        if len(targets) >= 10:
+            break
+    ws_usernames = {str(name).strip().casefold() for name in ACTIVE_UPSTREAM if str(name).strip()}
+    targets = [t for t in targets if t.casefold() not in ws_usernames][:10]
     try:
         loops = max(1, min(100, int(data.get("loop", 1))))
         sockets_count = max(1, min(10, int(data.get("sockets", 10))))
@@ -373,17 +396,49 @@ async def kick_loop(request):
     progress_lock = asyncio.Lock()
 
     room_key = _norm_room_key(room)
+    # Immutable replacement source: exactly the original target pool (max 10).
+    # BRUTE/COMBO still decide the normal dispatch pattern; replacement only
+    # reacts to a confirmed kicked event and never creates a new target.
     replacement_state = {
         "targets": list(targets),
-        "cursor": 0,
         "kicked": set(),
         "claimed": set(),
-        "target_for_key": {},
+        "events": {t.casefold(): asyncio.Event() for t in targets},
+        "replacement_tasks": set(),
+        "replacement_dispatched": 0,
         "lock": asyncio.Lock(),
     }
+
+    async def dispatch_replacement(kicked_target):
+        async with replacement_state["lock"]:
+            kicked_key = str(kicked_target).strip().casefold()
+            candidates = [
+                t for t in replacement_state["targets"]
+                if t.casefold() not in replacement_state["kicked"]
+                and t.casefold() != kicked_key
+                and t.casefold() not in replacement_state["claimed"]
+            ]
+            if not candidates:
+                return
+            replacement = candidates[0]
+            replacement_state["claimed"].add(replacement.casefold())
+            replacement_state["replacement_dispatched"] += len(socket_entries)
+
+        if delay_target:
+            await asyncio.sleep(delay_target)
+
+        # Replacement uses the same active WS set as the selected BRUTE/COMBO
+        # job. It does not introduce another brute/combo pattern.
+        jobs = [
+            run_one(ws, ws_name, replacement, 0, is_replacement=True)
+            for ws_name, ws in socket_entries
+        ]
+        await asyncio.gather(*jobs, return_exceptions=True)
+
+    replacement_state["on_kicked"] = dispatch_replacement
     ACTIVE_KICK_JOBS.setdefault(room_key, []).append(replacement_state)
 
-    async def run_one(ws, ws_name, target, loop_no):
+    async def run_one(ws, ws_name, target, loop_no, is_replacement=False):
         nonlocal total, failed
         current_target = target
 
@@ -420,14 +475,13 @@ async def kick_loop(request):
                 "websockets": len(sockets),
                 "loop": loop_no + 1, "loops": loops,
                 "target": current_target, "websocket": ws_name,
+                "replacement": bool(is_replacement),
+                "kickedTargets": len(state["kicked"]),
                 "socketStats": {"websocket": ws_name, **current_socket},
             })
 
-            # A confirmed kick removes this target from further processing.
-            # Do not automatically select or dispatch a replacement target.
-            async with state["lock"]:
-                if target_key in state["kicked"]:
-                    return
+            # Replacement is event-driven from mark_confirmed_kick(). Do not
+            # guess that a target was kicked merely because send_kick succeeded.
             return
 
     for loop_no in range(loops):
@@ -460,6 +514,13 @@ async def kick_loop(request):
         if loop_no + 1 < loops and delay_batch:
             await asyncio.sleep(delay_batch)
 
+    # Wait for replacement chains already triggered by confirmed events. A
+    # replacement may itself be kicked and therefore schedule another one.
+    while replacement_state.get("replacement_tasks"):
+        pending = list(replacement_state["replacement_tasks"])
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
     active_jobs = ACTIVE_KICK_JOBS.get(room_key, [])
     if replacement_state in active_jobs:
         active_jobs.remove(replacement_state)
@@ -471,13 +532,18 @@ async def kick_loop(request):
         "jobId": job_id, "phase": "done", "totalJobs": total_jobs,
         "dispatchedJobs": total, "failedJobs": failed,
         "websockets": len(sockets), "targets": len(targets),
-        "loop": loops, "burst": burst, "combo": combo, "kickLimit": KICK_LIMIT_LABEL,
+        "loop": loops, "burst": burst, "combo": combo,
+        "replacement": True, "kickedTargets": len(replacement_state["kicked"]),
+        "replacementDispatched": replacement_state["replacement_dispatched"],
+        "kickLimit": KICK_LIMIT_LABEL,
         "socketReports": reports
     })
     return web.json_response({"ok": True, "jobId": job_id, "totalJobs": total_jobs,
                               "dispatchedJobs": total, "failedJobs": failed,
                               "websockets": len(sockets), "targets": len(targets),
                               "loop": loops, "burst": burst, "combo": combo,
+                              "replacement": True, "kickedTargets": len(replacement_state["kicked"]),
+                              "replacementDispatched": replacement_state["replacement_dispatched"],
                               "kickLimit": KICK_LIMIT_LABEL, "socketReports": reports})
 
 async def suicide(request):
